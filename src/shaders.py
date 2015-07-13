@@ -15,19 +15,28 @@ void main()
 
 
 vertex_flat = b'''
-attribute vec2 position;
-//uniform vec2 window_size;
+attribute vec4 position;
+
+varying vec2 texcoord;
+
 const vec2 window_size = vec2(640, -480);
+
 void main()
 {
-    gl_Position = vec4(position / window_size * 2.0 + vec2(-1,1), 0.0, 1.0); 
+    texcoord = position.zw;
+    gl_Position = vec4(position.xy / window_size * 2.0 + vec2(-1,1), 0.0, 1.0); 
     //gl_Position = vec4(position, 0.0, 1.0); 
 }
 '''
 
 fragment_flat = b'''
+uniform sampler2D tex;
+varying vec2 texcoord;
+
 void main()
 {
-    gl_FragColor = vec4(0.7, 0.3, 0.3, 1.0);
+    vec4 lum;
+    lum = texture2D(tex, texcoord);
+    gl_FragColor = mix(vec4(0.7, 0.3, 0.3, 1.0), vec4(1.0, 1.0, 1.0, 1.0), lum.r);
 }
 '''
