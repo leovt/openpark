@@ -22,19 +22,11 @@ class Application:
         self.view = SimulationView()
         self.wm = WindowManager()
 
-        # creating test windows
-        test_window = Window(self.wm.root, 10, 10, 100, 100)
-        test_window.on_click = lambda:print('Test Click')
-        Label(test_window, 'Test target', 15, 40)
-        test_label = Label(self.wm.root, 'Hello World', 10, 150)
-        test_label.on_click = lambda:print('Hello World')
-
-
-
         self.state = 'menu'
         self.speed = 1.0
         self.window = window
         logging.debug('The state is {}'.format(self.state))
+        self.start_menu()
 
     def update(self, dt):
         self.view.update(dt * self.speed)
@@ -48,15 +40,33 @@ class Application:
     def on_mouse_press(self, x, y, *args):
         self.wm.on_mouse_press(x, self.window.height - y, *args)
 
+    def show_menu(self):
+        self.menu = Window(self.wm.root, 100, 100, 440, 280)
+        Label(self.menu, 'OpenPark Main Menu', 10, 10)
+        Label(self.menu, 'Leonhard Vogt 2015', 10, 40)
+
+        Label(self.menu, '[ new empty simulation ]', 10, 100).on_click = self.menu_new
+        Label(self.menu, '[ quit program ]', 10, 130).on_click = self.menu_quit
+
     def new_empty_simulation(self):
+        self.menu.close()
         simu = Simulation(30, 30)
         self.view.unload()
         self.view.load(simu)
 
-    def start_background_simulation(self):
+    def start_menu(self):
         # simu = load_background_simulation()
         self.view.unload()
         # self.view.load(simu)
+        self.show_menu()
+
+    def menu_new(self):
+        self.state = 'simu'
+        logging.debug('The state is {}'.format(self.state))
+        self.new_empty_simulation()
+
+    def menu_quit(self):
+        pyglet.app.exit()
 
     def on_key_press(self, symbol, modifiers):
         logging.debug('Key Press {} {}'.format(symbol, modifiers))
@@ -66,14 +76,13 @@ class Application:
 
         if self.state == 'menu':
             if symbol == key.N:
-                self.state = 'simu'
-                logging.debug('The state is {}'.format(self.state))
-                self.new_empty_simulation()
+                self.menu_new()
             if symbol == key.Q:
-                pyglet.app.exit()
+                self.menu_quit()
+
         elif self.state == 'simu':
             if symbol == key.Q:
-                self.start_background_simulation()
+                self.start_menu()
                 self.state = 'menu'
                 logging.debug('The state is {}'.format(self.state))
             if symbol == key.SPACE:
