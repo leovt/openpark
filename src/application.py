@@ -88,3 +88,4 @@ class Application:
     def on_resize(self, x, y):
         logging.info('Window Resized to {}x{}'.format(x, y))
         gl.glViewport(0, 0, x, y)
+        self.wm.on_resize(x, y)

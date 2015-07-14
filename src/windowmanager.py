@@ -147,3 +147,6 @@ class WindowManager():
 
     def on_mouse_press(self, x, y, button, modifiers):
         self.root.on_mouse_press(x, y, button, modifiers)
+
+    def on_resize(self, x, y):
+        self.program.uniform2f(b'window_size', x, -y)

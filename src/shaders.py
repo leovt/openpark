@@ -19,7 +19,7 @@ attribute vec4 position;
 
 varying vec2 texcoord;
 
-const vec2 window_size = vec2(640, -480);
+uniform vec2 window_size;
 
 void main()
 {
