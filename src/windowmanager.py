@@ -10,13 +10,16 @@ import pyglet.window.mouse
 from textmanager import TextManager
 
 class Window:
-    def __init__(self, left, top, width, height):
+    def __init__(self, parent, left, top, width, height):
         self.left = left
         self.top = top
         self.width = width
         self.height = height
-        self.is_root = False
         self.children = []
+        self.parent = parent
+        if parent:
+            self.manager = parent.manager
+            self.parent.add(self)
 
     @property
     def right(self):
@@ -36,16 +39,20 @@ class Window:
         x += self.left
         y += self.top
 
-        if not self.is_root:
+        if self.parent:
+            # this excludes the invisible root window
             yield from self.own_data(x, y)
 
         for child in self.children:
             yield from child.get_data(x, y)
 
     def add(self, child):
+        if child in self.children:
+            raise Exception('child already registered')
         self.children.append(child)
 
     def close(self):
+        self.parent.remove(self)
         for child in self.children:
             child.close()
 
@@ -61,32 +68,34 @@ class Window:
 
 
 class Label(Window):
-    def __init__(self, tm, text, left, top):
-        self.tm = tm
-        self.left = left
-        self.top = top
-        self.text = None
-        self.set(text)
-        self.is_root = False
-        self.children = []
+    def __init__(self, parent, text, left, top):
+        Window.__init__(self, parent, left, top, 0, 0)
+        self._text = None
+        logging.debug(repr(Label.text))
+        self.text = text
 
-    def set(self, text):
-        if self.text:
-            self.tm.free(self.text)
+    @property
+    def text(self):
+        return self._text
 
-        if text:
-            rect = self.tm.alloc(text)
-            self.text = text
-            self.width = rect.width
-            self.height = rect.height
-            self.u0 = rect.left / self.tm.width
-            self.u1 = rect.right / self.tm.width
-            self.v0 = rect.top / self.tm.height
-            self.v1 = rect.bottom / self.tm.height
+    @text.setter
+    def text(self, text):
+        tm = self.manager.textmanager
+        if self._text is not None:
+            tm.free(self._text)
+        self._text = text
+
+        rect = self.manager.textmanager.alloc(text)
+        self.width = rect.width
+        self.height = rect.height
+        self.u0 = rect.left / tm.width
+        self.u1 = rect.right / tm.width
+        self.v0 = rect.top / tm.height
+        self.v1 = rect.bottom / tm.height
 
     def close(self):
         if self.text:
-            self.tm.free(self.text)
+            self.manager.textmanager.free(self._text)
 
     def own_data(self, x, y):
         yield from (x, y, self.u0, self.v0)
@@ -94,15 +103,16 @@ class Label(Window):
         yield from (x + self.width, y + self.height, self.u1, self.v1)
         yield from (x + self.width, y, self.u1, self.v0)
 
+
 class WindowManager():
     '''
     classdocs
     '''
 
     def __init__(self):
-        self.root = Window(0, 0, 1, 1)
-        self.root.is_root = True
         self.textmanager = TextManager()
+        self.root = Window(None, 0, 0, 1, 1)
+        self.root.manager = self
         self.init_gl()
 
     def init_gl(self):

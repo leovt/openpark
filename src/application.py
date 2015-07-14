@@ -23,14 +23,13 @@ class Application:
         self.wm = WindowManager()
 
         # creating test windows
-        # TODO: creating windows requires to reach into internals of windowmanager -> clean api
-        test_window = Window(10, 10, 200, 20)
+        test_window = Window(self.wm.root, 10, 10, 100, 100)
         test_window.on_click = lambda:print('Test Click')
-        test_label = Label(self.wm.textmanager, 'Hello World', 10, 50)
+        Label(test_window, 'Test target', 15, 40)
+        test_label = Label(self.wm.root, 'Hello World', 10, 150)
         test_label.on_click = lambda:print('Hello World')
 
-        self.wm.root.add(test_window)
-        self.wm.root.add(test_label)
+
 
         self.state = 'menu'
         self.speed = 1.0
