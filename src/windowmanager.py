@@ -51,6 +51,9 @@ class Window:
             raise Exception('child already registered')
         self.children.append(child)
 
+    def remove(self, child):
+        self.children.remove(child)
+
     def close(self):
         self.parent.remove(self)
         for child in self.children:
@@ -71,7 +74,6 @@ class Label(Window):
     def __init__(self, parent, text, left, top):
         Window.__init__(self, parent, left, top, 0, 0)
         self._text = None
-        logging.debug(repr(Label.text))
         self.text = text
 
     @property
