@@ -45,3 +45,7 @@ class GlProgram:
     def uniform1i(self, name, value):
         loc = gl.glGetUniformLocation(self.handle, ctypes.create_string_buffer(name))
         gl.glUniform1i(loc, value);
+
+    def uniform2f(self, name, v0, v1):
+        loc = gl.glGetUniformLocation(self.handle, ctypes.create_string_buffer(name))
+        gl.glUniform2f(loc, v0, v1);
