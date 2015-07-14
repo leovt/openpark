@@ -1,15 +1,28 @@
 import ctypes
-from ctypes import byref, POINTER
+import logging
+from ctypes import byref, POINTER, pointer
 
 from pyglet import gl
 
 def shader(stype, src):
     handle = gl.glCreateShader(stype)
     buffer = ctypes.create_string_buffer(src)
-    pointer = ctypes.cast(ctypes.pointer(ctypes.pointer(buffer)), POINTER(POINTER(ctypes.c_char)))
+    buf_pointer = ctypes.cast(ctypes.pointer(ctypes.pointer(buffer)), POINTER(POINTER(ctypes.c_char)))
     length = ctypes.c_int(len(src) + 1)
-    gl.glShaderSource(handle, 1, pointer, byref(length))
+    gl.glShaderSource(handle, 1, buf_pointer, byref(length))
     gl.glCompileShader(handle)
+    success = gl.GLint(0)
+    gl.glGetShaderiv(handle, gl.GL_COMPILE_STATUS, pointer(success))
+    length = gl.GLint(0)
+    gl.glGetShaderiv(handle, gl.GL_INFO_LOG_LENGTH, pointer(length))
+    buffer = ctypes.create_string_buffer(length.value)
+    gl.glGetShaderInfoLog(handle, length, None, buffer)
+    log = buffer.value[:length.value].decode('ascii')
+    for line in log.splitlines():
+        logging.debug('GLSL: ' + line)
+
+    if not success:
+        raise Exception('Compiling of the shader failed.')
     return handle
 
 class GlProgram:
