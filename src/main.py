@@ -17,7 +17,7 @@ def main():
     logging.config.fileConfig('logging.conf')
     try:
         initialize_gl()
-        app = application.Application()
+        app = application.Application(window)
         window.push_handlers(app)
 
         pyglet.clock.schedule_interval(app.update, 0.01)

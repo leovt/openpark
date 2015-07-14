@@ -6,6 +6,7 @@ from graphix import GlProgram
 import shaders
 
 from pyglet import gl
+import pyglet.window.mouse
 from textmanager import TextManager
 
 class Window:
@@ -16,6 +17,14 @@ class Window:
         self.height = height
         self.is_root = False
         self.children = []
+
+    @property
+    def right(self):
+        return self.left + self.width
+
+    @property
+    def bottom(self):
+        return self.top + self.height
 
     def own_data(self, x, y):
         yield from (x, y, 0.0, 0.0)
@@ -39,6 +48,17 @@ class Window:
     def close(self):
         for child in self.children:
             child.close()
+
+    def on_click(self):
+        pass
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        for child in reversed(self.children):
+            if child.left <= x < child.right and child.top <= y < child.bottom:
+                child.on_mouse_press(x - child.left, y - child.top, button, modifiers)
+        if button == pyglet.window.mouse.LEFT:
+            self.on_click()
+
 
 class Label(Window):
     def __init__(self, tm, text, left, top):
@@ -83,11 +103,6 @@ class WindowManager():
         self.root = Window(0, 0, 1, 1)
         self.root.is_root = True
         self.textmanager = TextManager()
-
-        # test adding a window
-        self.root.add(Window(10, 10, 200, 20))
-        self.root.add(Label(self.textmanager, 'Hello World', 10, 50))
-
         self.init_gl()
 
     def init_gl(self):
@@ -129,3 +144,6 @@ class WindowManager():
         self.program.vertex_attrib_pointer(self.buffer, b"position", 4)
         # self.program.vertex_attrib_pointer(self.buffer, b"texcoord", 2, stride=4 * sizeof(gl.GLfloat), offset=2 * sizeof(gl.GLfloat))
         gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 4)
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        self.root.on_mouse_press(x, y, button, modifiers)

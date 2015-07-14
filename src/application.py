@@ -6,7 +6,7 @@ from simulation import Simulation
 import pyglet
 from pyglet import gl
 from pyglet.window import key
-from windowmanager import WindowManager
+from windowmanager import WindowManager, Window, Label
 
 class Application:
     '''
@@ -14,15 +14,27 @@ class Application:
     '''
 
 
-    def __init__(self):
+    def __init__(self, window):
         '''
         Constructor
         '''
         self.frame_no = 0
         self.view = SimulationView()
         self.wm = WindowManager()
+
+        # creating test windows
+        # TODO: creating windows requires to reach into internals of windowmanager -> clean api
+        test_window = Window(10, 10, 200, 20)
+        test_window.on_click = lambda:print('Test Click')
+        test_label = Label(self.wm.textmanager, 'Hello World', 10, 50)
+        test_label.on_click = lambda:print('Hello World')
+
+        self.wm.root.add(test_window)
+        self.wm.root.add(test_label)
+
         self.state = 'menu'
         self.speed = 1.0
+        self.window = window
         logging.debug('The state is {}'.format(self.state))
 
     def update(self, dt):
@@ -33,6 +45,9 @@ class Application:
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
         self.view.draw()
         self.wm.draw()
+
+    def on_mouse_press(self, x, y, *args):
+        self.wm.on_mouse_press(x, self.window.height - y, *args)
 
     def new_empty_simulation(self):
         simu = Simulation(30, 30)
