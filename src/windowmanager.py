@@ -83,6 +83,8 @@ class Label(Window):
 
     @text.setter
     def text(self, text):
+        if self._text == text:
+            return
         tm = self.manager.textmanager
         if self._text is not None:
             tm.free(self._text)
@@ -143,15 +145,18 @@ class WindowManager():
 
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture)
-        gl.glTexImage2D(gl.GL_TEXTURE_2D,
-                 0,  # level
-                 gl.GL_R8,
-                 self.textmanager.width,
-                 self.textmanager.height,
-                 0,
-                 gl.GL_RED,
-                 gl.GL_UNSIGNED_BYTE,
-                 ctypes.create_string_buffer(self.textmanager.img.tobytes()))
+        if self.textmanager.dirty:
+            # only upload the texture to the GPU if it has actually changed
+            gl.glTexImage2D(gl.GL_TEXTURE_2D,
+                     0,  # level
+                     gl.GL_R8,
+                     self.textmanager.width,
+                     self.textmanager.height,
+                     0,
+                     gl.GL_RED,
+                     gl.GL_UNSIGNED_BYTE,
+                     ctypes.create_string_buffer(self.textmanager.img.tobytes()))
+            self.textmanager.dirty = False
         self.program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
 
         self.program.vertex_attrib_pointer(self.buffer, b"position", 4)
