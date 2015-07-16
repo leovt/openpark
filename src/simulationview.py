@@ -9,6 +9,7 @@ from pyglet import gl
 
 import shaders
 from graphix import GlProgram
+from windowmanager import Label
 
 
 DAY_NAMES = ['1', '8', '15', '22']
@@ -27,11 +28,11 @@ class SimulationView:
     '''
 
 
-    def __init__(self):
+    def __init__(self, wm):
         '''
         Constructor
         '''
-
+        self.wm = wm
         self.simulation = None
         self.orientation = 0
         self.view_x = 0
@@ -40,7 +41,6 @@ class SimulationView:
 
     def init_gl(self):
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
-
         self.buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
@@ -51,9 +51,11 @@ class SimulationView:
     def load(self, simulation):
         assert self.simulation is None
         self.simulation = simulation
+        self.label = Label(self.wm.root, '', 0, 0)
 
     def unload(self):
         self.simulation = None
+        self.wm.root.close()
 
     def update(self, dt):
         if self.simulation:
@@ -63,7 +65,7 @@ class SimulationView:
         if self.simulation is None:
             return
         now = self.simulation.current_datetime()
-        logging.debug('Simulated date is {} + {:f} seconds'.format(format_date(now), now[3]))
+        self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
 
         self.program.use()
         self.program.vertex_attrib_pointer(self.buffer, b"position", 2)

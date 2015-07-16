@@ -55,7 +55,8 @@ class Window:
         self.children.remove(child)
 
     def close(self):
-        self.parent.remove(self)
+        if self.parent:
+            self.parent.remove(self)
         for child in self.children:
             child.close()
 
@@ -96,8 +97,9 @@ class Label(Window):
         self.v1 = rect.bottom / tm.height
 
     def close(self):
-        if self.text:
+        if self._text:
             self.manager.textmanager.free(self._text)
+        Window.close(self)
 
     def own_data(self, x, y):
         yield from (x, y, self.u0, self.v0)
@@ -129,7 +131,6 @@ class WindowManager():
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
         gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-
 
     def draw(self):
         self.program.use()

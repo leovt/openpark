@@ -110,13 +110,3 @@ class TextManager:
             line.append(Block(alloc.rect.left, alloc.rect.right))
             line.sort(key=lambda block:block.left)
 
-
-
-tm = TextManager(width=55)
-tm.alloc(u'hello')
-tm.alloc(u'gxx')
-tm.alloc(u'안녕')
-tm.free(u'gxx')
-tm.alloc(u'12')
-tm.alloc(u'P')
-tm.dump()

@@ -19,8 +19,8 @@ class Application:
         Constructor
         '''
         self.frame_no = 0
-        self.view = SimulationView()
         self.wm = WindowManager()
+        self.view = SimulationView(self.wm)
 
         self.state = 'menu'
         self.speed = 1.0
@@ -73,6 +73,7 @@ class Application:
         if symbol == key.I:
             logging.info('FPS: {}'.format(pyglet.clock.get_fps()))
             logging.info('Frame-No: {}'.format(self.frame_no))
+            self.wm.textmanager.dump()
 
         if self.state == 'menu':
             if symbol == key.N:
@@ -95,5 +96,7 @@ class Application:
 
     def on_resize(self, x, y):
         logging.info('Window Resized to {}x{}'.format(x, y))
+        x = max(x, 1)
+        y = max(y, 1)
         gl.glViewport(0, 0, x, y)
         self.wm.on_resize(x, y)
