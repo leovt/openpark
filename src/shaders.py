@@ -1,8 +1,25 @@
 vertex_scene = b'''
 attribute vec2 position;
+uniform vec2 window_size;
+
+const float VOXEL_HEIGHT = 19.0;
+const float VOXEL_Y_SIDE = 24.0;
+const float VOXEL_X_SIDE = 48.0;
+
 void main()
 {
-    gl_Position = vec4(position, 0.0, 1.0);
+    vec2 mult;
+    mult = vec2(VOXEL_X_SIDE * 2.0, VOXEL_Y_SIDE * 2.0) / window_size;
+    vec2 world;
+    world = vec2(position.x - position.y, position.x + position.y);
+    world = world * mult;
+    gl_Position = vec4(world, 0.0, 1.0); 
+    
+/*     gl_Position = vec4(
+         position.x * VOXEL_X_SIDE / window_size.x * 0.5,
+         - (position.x + position.y) * VOXEL_Y_SIDE / window_size.y * 0.5,
+         0.0,
+         1.0);*/ 
 }
 '''
 

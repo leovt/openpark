@@ -50,7 +50,7 @@ class Application:
 
     def new_empty_simulation(self):
         self.menu.close()
-        simu = Simulation(30, 30)
+        simu = Simulation(2, 2)
         self.view.unload()
         self.view.load(simu)
 
@@ -100,3 +100,4 @@ class Application:
         y = max(y, 1)
         gl.glViewport(0, 0, x, y)
         self.wm.on_resize(x, y)
+        self.view.on_resize(x, y)

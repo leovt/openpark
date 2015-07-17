@@ -40,6 +40,8 @@ class Simulation:
         self.map = [[Tile(Terrain.GRASS, row, col)
                      for row in range(world_height)] for col in range(world_width)]
 
+        self.persons = [('Leonhard', (0.3, 0.6, 0.0))]
+
         self.time = 0
 
     def update(self, delta_sim_seconds):

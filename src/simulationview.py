@@ -44,7 +44,7 @@ class SimulationView:
         self.buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
-        data = (gl.GLfloat * 6)(-0.6, -0.6, -0.6, 0.6, 0.6, 0.0)
+        data = (gl.GLfloat * 8)(0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
 
@@ -69,4 +69,8 @@ class SimulationView:
 
         self.program.use()
         self.program.vertex_attrib_pointer(self.buffer, b"position", 2)
-        gl.glDrawArrays(gl.GL_TRIANGLE_STRIP, 0, 3)
+        gl.glDrawArrays(gl.GL_QUADS, 0, 4)
+
+    def on_resize(self, x, y):
+        '''update the window manager when the opengl viewport is resized'''
+        self.program.uniform2f(b'window_size', x, y)
