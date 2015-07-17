@@ -2,3 +2,6 @@
 .pydevproject
 __pycache__
 src/textmanager.png
+.settings
+doc/_build
+doc/api
