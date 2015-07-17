@@ -1,3 +1,11 @@
+"""
+The window manager for the Open Park project
+
+The window manager uses a coordinate system where the top left corner of the
+application window has coordinates (0,0).
+
+@author: Leonhard Vogt
+"""
 import logging
 from ctypes import pointer, sizeof
 import ctypes
@@ -10,7 +18,19 @@ import pyglet.window.mouse
 from textmanager import TextManager
 
 class Window:
+    '''
+    The window class is the base class for all windows and controls.
+    '''
     def __init__(self, parent, left, top, width, height):
+        '''
+        Initialize a new window.
+        
+        parent -- the parent window, this instance self-registers with the parent.
+        left -- the x-position of the left edge of the window with respect to the parent.
+        top -- the y-position of the top edge of the window.
+        width -- the width of the window.
+        height -- the height of the window.
+        '''
         self.left = left
         self.top = top
         self.width = width
@@ -23,19 +43,29 @@ class Window:
 
     @property
     def right(self):
+        ''' the x-position of the right edge of the window (exclusive) '''
         return self.left + self.width
 
     @property
     def bottom(self):
+        ''' the y-position of the bottom edge of the window (exclusive) '''
         return self.top + self.height
 
     def own_data(self, x, y):
+        '''
+        Iterate over all the vertex data needed for rendering this window.
+        
+        A flat iterable of floats that are passed in the vertex buffer.
+        '''
         yield from (x, y, 0.0, 0.0)
         yield from (x, y + self.height, 0.0, 0.0)
         yield from (x + self.width, y + self.height, 1.0, 0.0)
         yield from (x + self.width, y, 1.0, 0.0)
 
     def get_data(self, x, y):
+        '''
+        Iterate over vertex data for this and all child windows
+        '''
         x += self.left
         y += self.top
 
@@ -47,23 +77,40 @@ class Window:
             yield from child.get_data(x, y)
 
     def add(self, child):
+        '''
+        Add a child window. The child should be a Window object.
+        '''
         if child in self.children:
             raise Exception('child already registered')
         self.children.append(child)
 
     def remove(self, child):
+        '''
+        Remove a child window.
+        '''
         self.children.remove(child)
 
     def close(self):
+        '''
+        Close this window and unregister it from its parent. 
+        '''
         if self.parent:
             self.parent.remove(self)
         for child in self.children:
             child.close()
 
     def on_click(self):
+        '''
+        Overwrite this method to register for click events.
+        '''
         pass
 
     def on_mouse_press(self, x, y, button, modifiers):
+        '''
+        Handle the mouse_press event and pass it to the appropriate child windows.
+        
+        In case the left mouse button is pressed the on_click method is called.
+        '''
         for child in reversed(self.children):
             if child.left <= x < child.right and child.top <= y < child.bottom:
                 child.on_mouse_press(x - child.left, y - child.top, button, modifiers)
@@ -72,13 +119,25 @@ class Window:
 
 
 class Label(Window):
+    '''
+    The label window is used for showing text. When text is set its size changes to fit.
+    '''
     def __init__(self, parent, text, left, top):
+        '''
+        Initialize the label window.
+        
+        parent -- the parent window
+        text -- the text contents shown by the label
+        left -- the x-position of the left edge of the window with respect to the parent.
+        top -- the y-position of the top edge of the window.
+        '''
         Window.__init__(self, parent, left, top, 0, 0)
         self._text = None
         self.text = text
 
     @property
     def text(self):
+        '''the text contents of the label. This attribute can be set to change the text'''
         return self._text
 
     @text.setter
@@ -99,11 +158,20 @@ class Label(Window):
         self.v1 = rect.bottom / tm.height
 
     def close(self):
+        '''
+        Close this window and unregister it from its parent.
+        Releases the text resource. 
+        '''
         if self._text:
             self.manager.textmanager.free(self._text)
         Window.close(self)
 
     def own_data(self, x, y):
+        '''
+        Iterate over all the vertex data needed for rendering this window.
+        
+        A flat iterable of floats that are passed in the vertex buffer.
+        '''
         yield from (x, y, self.u0, self.v0)
         yield from (x, y + self.height, self.u0, self.v1)
         yield from (x + self.width, y + self.height, self.u1, self.v1)
@@ -112,16 +180,27 @@ class Label(Window):
 
 class WindowManager():
     '''
-    classdocs
+    The window manager is responsible for drawing the windows and
+    for forwarding events to the windows.
+    
+    It uses a TextManager object to manage the texture resources used by the Label objects.
+    
+    The window manager creates an invisible root window which is the ancestor to all windows managed.  
     '''
-
     def __init__(self):
+        '''initialize the WindowManager'''
         self.textmanager = TextManager()
         self.root = Window(None, 0, 0, 1, 1)
         self.root.manager = self
         self.init_gl()
 
     def init_gl(self):
+        '''initialize the opengl resources needed for presenting windows
+        
+        * a shader program
+        * a vertex buffer
+        * a texture for Label windows
+        '''
         self.program = GlProgram(shaders.vertex_flat, shaders.fragment_flat)
         self.buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
@@ -135,6 +214,9 @@ class WindowManager():
         gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
     def draw(self):
+        '''
+        Draw the windows.
+        '''
         self.program.use()
 
         data = list(self.root.get_data(0, 0))
@@ -164,7 +246,9 @@ class WindowManager():
         gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 4)
 
     def on_mouse_press(self, x, y, button, modifiers):
+        '''forward the event to the root window'''
         self.root.on_mouse_press(x, y, button, modifiers)
 
     def on_resize(self, x, y):
+        '''update the window manager when the opengl viewport is resized'''
         self.program.uniform2f(b'window_size', x, -y)
