@@ -1,5 +1,9 @@
 vertex_scene = b'''
-attribute vec2 position;
+attribute vec4 position;
+attribute vec2 texcoord;
+
+varying vec2 texcoord_;
+
 uniform vec2 window_size;
 
 const float VOXEL_HEIGHT = 19.0;
@@ -8,25 +12,21 @@ const float VOXEL_X_SIDE = 48.0;
 
 void main()
 {
-    vec2 mult;
-    mult = vec2(VOXEL_X_SIDE * 2.0, VOXEL_Y_SIDE * 2.0) / window_size;
     vec2 world;
-    world = vec2(position.x - position.y, position.x + position.y);
-    world = world * mult;
+    world = vec2(VOXEL_X_SIDE * (position.x - position.y), VOXEL_Y_SIDE * (position.x + position.y) + VOXEL_HEIGHT * position.z);
+    world = 2.0 * world / window_size;
+    texcoord_ = texcoord;
     gl_Position = vec4(world, 0.0, 1.0); 
-    
-/*     gl_Position = vec4(
-         position.x * VOXEL_X_SIDE / window_size.x * 0.5,
-         - (position.x + position.y) * VOXEL_Y_SIDE / window_size.y * 0.5,
-         0.0,
-         1.0);*/ 
 }
 '''
 
 fragment_scene = b'''
+uniform sampler2D tex;
+varying vec2 texcoord_;
+
 void main()
 {
-    gl_FragColor = vec4(0.3, 0.7, 0.3, 1.0);
+    gl_FragColor = texture2D(tex, texcoord_);
 }
 '''
 

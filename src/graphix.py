@@ -1,7 +1,7 @@
 import ctypes
 import logging
 from ctypes import byref, POINTER, pointer
-
+import PIL.Image
 from pyglet import gl
 
 def shader(stype, src):
@@ -39,6 +39,9 @@ class GlProgram:
     def vertex_attrib_pointer(self, buffer, name, size, type=gl.GL_FLOAT, normalized=False, stride=0, offset=0):
         self.use()
         loc = gl.glGetAttribLocation(self.handle, ctypes.create_string_buffer(name))
+        if loc < 0:
+            logging.warning('Attribute {} is not in the shader.'.format(name))
+            return
         gl.glEnableVertexAttribArray(loc)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, buffer)
         gl.glVertexAttribPointer(loc, size, type, normalized, stride, ctypes.c_void_p(offset))
@@ -52,3 +55,31 @@ class GlProgram:
         self.use()
         loc = gl.glGetUniformLocation(self.handle, ctypes.create_string_buffer(name))
         gl.glUniform2f(loc, v0, v1);
+
+
+def make_texture(filename):
+    name = gl.GLuint(0)
+    gl.glGenTextures(1, pointer(name))
+    gl.glBindTexture(gl.GL_TEXTURE_2D, name)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+
+    image = PIL.Image.open(filename)
+    image = image.convert('RGBA')
+    logging.debug(image.mode)
+
+    width, height = image.size
+    assert len(image.tobytes()) == width * height * 4
+    gl.glTexImage2D(gl.GL_TEXTURE_2D,
+             0,  # level
+             gl.GL_RGBA8,
+             width,
+             height,
+             0,
+             gl.GL_RGBA,
+             gl.GL_UNSIGNED_BYTE,
+             ctypes.create_string_buffer(image.tobytes()))
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+    return name
