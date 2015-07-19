@@ -75,46 +75,27 @@ class SimulationView:
             self.simulation.update(dt)
 
     def get_map_vertex_data(self):
-        yield from (0.0, 0.0, 0.0, 0.0, 0.5, 1.0)
-        yield from (1.0, 0.0, 0.0, 0.0, 1.0, 0.5)
-        yield from (1.0, 1.0, 0.0, 0.0, 0.5, 0.0)
-        yield from (0.0, 1.0, 0.0, 0.0, 0.0, 0.5)
-
-        yield from (1.0, 0.0, 0.0, 0.0, 0.5, 1.0)
-        yield from (2.0, 0.0, 0.0, 0.0, 1.0, 0.5)
-        yield from (2.0, 1.0, 0.0, 0.0, 0.5, 0.0)
-        yield from (1.0, 1.0, 0.0, 0.0, 0.0, 0.5)
+        for x, row in enumerate(self.simulation.map):
+            for y, tile in enumerate(row):
+                yield from (x, y, 0.0, 0.0, 0.5, 1.0)
+                yield from (x + 1.0, y, 0.0, 0.0, 1.0, 0.5)
+                yield from (x + 1.0, y + 1.0, 0.0, 0.0, 0.5, 0.0)
+                yield from (x, y + 1.0, 0.0, 0.0, 0.0, 0.5)
 
     def get_sprite_vertex_data(self):
-        r = self.sprite.get_coordinates(self.simulation.time)
+        for person in self.simulation.persons:
+            self.sprite.set_pose(person.pose)
+            self.sprite.turn_to(person.direction)
+            r = self.sprite.get_coordinates(self.simulation.time)
 
-        s = (0.4 * self.simulation.time) % 8
+            dx = self.sprite.offset_x / VOXEL_X_SIDE * 0.5
+            dz_up = self.sprite.offset_y / VOXEL_HEIGHT
+            dz_down = -self.sprite.frame_height / VOXEL_HEIGHT + dz_up
 
-        if s < 2:
-            x = 2.5 - s
-            y = 0.3
-            self.sprite.turn_to(180)
-        elif s < 4:
-            y = 0.3 + (s - 2)
-            x = 0.5
-            self.sprite.turn_to(90)
-        elif s < 6:
-            y = 2.3
-            x = 0.5 + (s - 4)
-            self.sprite.turn_to(0)
-        else:
-            y = 2.3 + (6 - s)
-            x = 2.5
-            self.sprite.turn_to(270)
-
-        dx = self.sprite.offset_x / VOXEL_X_SIDE * 0.5
-        dz_up = self.sprite.offset_y / VOXEL_HEIGHT
-        dz_down = -self.sprite.frame_height / VOXEL_HEIGHT + dz_up
-
-        yield from (x - dx, y + dx, dz_down, 0, r.left, r.bottom)
-        yield from (x - dx, y + dx, dz_up, 0, r.left, r.top)
-        yield from (x + dx, y - dx, dz_up, 0, r.right, r.top)
-        yield from (x + dx, y - dx, dz_down, 0, r.right, r.bottom)
+            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom)
+            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top)
+            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top)
+            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom)
 
     def draw(self):
         if self.simulation is None:
