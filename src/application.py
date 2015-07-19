@@ -91,6 +91,11 @@ class Application:
                     self.speed = 0
                 else:
                     self.speed = 1.0
+            if symbol == key.NUM_ADD:
+                self.speed += 0.5
+            if symbol == key.NUM_SUBTRACT:
+                self.speed = max(0.0, self.speed - 0.5)
+
         else:
             assert False
 
