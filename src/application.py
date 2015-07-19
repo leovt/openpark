@@ -50,7 +50,7 @@ class Application:
 
     def new_empty_simulation(self):
         self.menu.close()
-        simu = Simulation(2, 2)
+        simu = Simulation(4, 3)
         self.view.unload()
         self.view.load(simu)
 
