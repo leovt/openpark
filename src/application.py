@@ -38,7 +38,9 @@ class Application:
         self.wm.draw()
 
     def on_mouse_press(self, x, y, *args):
-        self.wm.on_mouse_press(x, self.window.height - y, *args)
+        hit = self.wm.on_mouse_press(x, self.window.height - y, *args)
+        if not hit and self.state == 'simu':
+            self.view.on_mouse_press(x, self.window.height - y, *args)
 
     def show_menu(self):
         self.menu = Window(self.wm.root, 100, 100, 440, 280)

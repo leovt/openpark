@@ -140,3 +140,6 @@ class SimulationView:
     def on_resize(self, x, y):
         '''update the window manager when the opengl viewport is resized'''
         self.program.uniform2f(b'window_size', x, y)
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        logging.debug('SimulationView.on_mouse_press({}, {})'.format(x, y))

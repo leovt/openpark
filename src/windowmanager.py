@@ -111,11 +111,16 @@ class Window:
         
         In case the left mouse button is pressed the on_click method is called.
         '''
+        hit = False
         for child in reversed(self.children):
             if child.left <= x < child.right and child.top <= y < child.bottom:
                 child.on_mouse_press(x - child.left, y - child.top, button, modifiers)
-        if button == pyglet.window.mouse.LEFT:
-            self.on_click()
+                hit = True
+        if self.parent:
+            if button == pyglet.window.mouse.LEFT:
+                self.on_click()
+        else:
+            return hit
 
 
 class Label(Window):
@@ -247,7 +252,7 @@ class WindowManager():
 
     def on_mouse_press(self, x, y, button, modifiers):
         '''forward the event to the root window'''
-        self.root.on_mouse_press(x, y, button, modifiers)
+        return self.root.on_mouse_press(x, y, button, modifiers)
 
     def on_resize(self, x, y):
         '''update the window manager when the opengl viewport is resized'''
