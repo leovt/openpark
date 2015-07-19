@@ -88,24 +88,24 @@ class SimulationView:
     def get_sprite_vertex_data(self):
         r = self.sprite.get_coordinates(self.simulation.time)
 
-        s = (5 - 0.4 * self.simulation.time) % 8
+        s = (0.4 * self.simulation.time) % 8
 
         if s < 2:
             x = 2.5 - s
             y = 0.3
-            self.sprite.turn_to(0)
+            self.sprite.turn_to(180)
         elif s < 4:
             y = 0.3 + (s - 2)
             x = 0.5
-            self.sprite.turn_to(270)
+            self.sprite.turn_to(90)
         elif s < 6:
             y = 2.3
             x = 0.5 + (s - 4)
-            self.sprite.turn_to(180)
+            self.sprite.turn_to(0)
         else:
             y = 2.3 + (6 - s)
             x = 2.5
-            self.sprite.turn_to(90)
+            self.sprite.turn_to(270)
 
         dx = self.sprite.offset_x / VOXEL_X_SIDE * 0.5
         dz_up = self.sprite.offset_y / VOXEL_HEIGHT
