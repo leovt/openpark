@@ -6,6 +6,9 @@ Created on 8 Jul 2015
 import logging
 from ctypes import pointer, sizeof
 from pyglet import gl
+from pyglet.window import mouse, key
+import os
+import configparser
 
 import shaders
 from graphix import GlProgram
@@ -13,10 +16,14 @@ from windowmanager import Label
 import sprite
 
 from graphix import make_texture
+from textmanager import Rect
 
-VOXEL_HEIGHT = 19.0;
-VOXEL_Y_SIDE = 24.0;
-VOXEL_X_SIDE = 48.0;
+VOXEL_HEIGHT = 19;
+VOXEL_Y_SIDE = 24;
+VOXEL_X_SIDE = VOXEL_Y_SIDE * 2;
+
+TEXTURE_WIDTH = 512
+TEXTURE_HEIGHT = 256
 
 DAY_NAMES = ['1', '8', '15', '22']
 MONTH_NAMES = ['Mar', 'Apr', 'May', 'Jun',
@@ -27,6 +34,39 @@ def format_date(datetime):
     year, month, day, _ = datetime
 
     return '{} {}, {}'.format(MONTH_NAMES[month], DAY_NAMES[day], year + YEAR_OFFSET)
+
+class tileset:
+    def __init__(self, inifile):
+        conf = configparser.SafeConfigParser()
+        conf.read(inifile)
+        self.filename = os.path.abspath(os.path.join(os.path.dirname(inifile), conf.get('Tiles', 'filename')))
+        grid_width = conf.getint('Tiles', 'grid_width') / conf.getint('Tiles', 'tex_width')
+        grid_height = conf.getint('Tiles', 'grid_height') / conf.getint('Tiles', 'tex_height')
+
+        self.tiles = {}
+
+        for sec in conf.sections():
+            if sec == 'Tiles':
+                continue
+            x = conf.getint(sec, 'x')
+            y = conf.getint(sec, 'y')
+            flip = conf.get(sec, 'flip').strip()
+
+            if flip in ('H', 'B'):
+                dx = -1
+            else:
+                dx = 1
+
+            if flip in ('V', 'B'):
+                dy = -1
+            else:
+                dy = 1
+
+            self.tiles[sec] = [(x * grid_width, (y + dy) * grid_height),
+                               ((x + dx) * grid_width, y * grid_height),
+                               (x * grid_width, (y - dy) * grid_height),
+                               ((x - dx) * grid_width, y * grid_height)]
+
 
 class SimulationView:
     '''
@@ -41,12 +81,14 @@ class SimulationView:
         self.wm = wm
         self.simulation = None
         self.orientation = 0
-        self.view_x = 0
-        self.view_y = 0
-        self.init_gl()
+        self.screen_origin_x = 0
+        self.screen_origin_y = 0
+
         self.sprite = sprite.Sprite('../art/guest.ini')
         self.sprite.set_pose('walk')
         self.sprite.turn_to(180)
+        self.tiles = tileset('../art/map.ini')
+        self.init_gl()
 
     def init_gl(self):
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
@@ -57,7 +99,7 @@ class SimulationView:
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
-        self.texture_map = make_texture('../art/map.png')
+        self.texture_map = make_texture(self.tiles.filename)
         self.texture_sprite = make_texture('../art/guest.png')
 
 
@@ -75,12 +117,25 @@ class SimulationView:
             self.simulation.update(dt)
 
     def get_map_vertex_data(self):
+
+        du = VOXEL_X_SIDE / TEXTURE_WIDTH
+        dv = VOXEL_Y_SIDE / TEXTURE_HEIGHT
+
+        uv = [((1 + 2 * (n % 4)) * du, (2 + 2 * (n // 4)) * dv) for n in range(16)]
+
+
+        floor = self.tiles.tiles['Grass']
+        points = [(0, 0), (1, 0), (1, 1), (0, 1)]
+
+        pathtiles = {p:self.tiles.tiles['Road%d' % p] for p in range(16)}
+        pathtiles[None] = [(0, 0), (0, 0), (0, 0), (0, 0)]
+
         for x, row in enumerate(self.simulation.map):
             for y, tile in enumerate(row):
-                yield from (x, y, 0.0, 0.0, 0.5, 1.0)
-                yield from (x + 1.0, y, 0.0, 0.0, 1.0, 0.5)
-                yield from (x + 1.0, y + 1.0, 0.0, 0.0, 0.5, 0.0)
-                yield from (x, y + 1.0, 0.0, 0.0, 0.0, 0.5)
+                for (dx, dy), (u, v), (s, t) in zip(points, floor, pathtiles[tile.path]):
+                    yield from (x + dx, y + dy, 0.0, 1.0,
+                                u, v, s, t)
+
 
     def get_sprite_vertex_data(self):
         for person in self.simulation.persons:
@@ -92,10 +147,10 @@ class SimulationView:
             dz_up = self.sprite.offset_y / VOXEL_HEIGHT
             dz_down = -self.sprite.frame_height / VOXEL_HEIGHT + dz_up
 
-            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom)
-            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top)
-            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top)
-            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom)
+            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom, 0, 0)
+            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top, 0, 0)
+            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top, 0, 0)
+            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom, 0, 0)
 
     def draw(self):
         if self.simulation is None:
@@ -104,8 +159,8 @@ class SimulationView:
         self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
 
         self.program.use()
-        self.program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=6 * sizeof(gl.GLfloat))
-        self.program.vertex_attrib_pointer(self.buffer, b"texcoord", 2, stride=6 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
+        self.program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
+        self.program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
 
         self.draw_map()
         self.draw_sprites()
@@ -122,7 +177,7 @@ class SimulationView:
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 6)
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
     def draw_sprites(self):
         gl.glActiveTexture(gl.GL_TEXTURE0)
@@ -134,12 +189,55 @@ class SimulationView:
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 6)
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
 
     def on_resize(self, x, y):
         '''update the window manager when the opengl viewport is resized'''
         self.program.uniform2f(b'window_size', x, y)
+        self.screen_width = x
+        self.screen_height = y
+        self.scroll_to(x // 2, y // 2)
 
     def on_mouse_press(self, x, y, button, modifiers):
         logging.debug('SimulationView.on_mouse_press({}, {})'.format(x, y))
+        tile = self.find_tile_at(x - self.screen_origin_x, self.screen_origin_y - y)
+        if not tile:
+            return
+        self.simulation.set_path(tile[0], tile[1], button == mouse.LEFT)
+
+    def on_key_press(self, symbol, modifiers):
+        if symbol == key.UP:
+            self.scroll(0, +20)
+        if symbol == key.DOWN:
+            self.scroll(0, -20)
+        if symbol == key.LEFT:
+            self.scroll(+20, 0)
+        if symbol == key.RIGHT:
+            self.scroll(-20, 0)
+
+    def scroll(self, dx, dy):
+        self.scroll_to(self.screen_origin_x + dx, self.screen_origin_y + dy)
+
+    def scroll_to(self, x, y):
+        self.program.uniform2f(b'screen_origin', x, -y)
+        self.screen_origin_x = x
+        self.screen_origin_y = y
+        logging.info('scroll to {},{}'.format(x, y))
+
+    def find_tile_at(self, x, y):
+        ''' x,y screen coordinates'''
+
+        # for now we know that the map is at Z=0, so we can directly transform
+        # screen coordinates into voxel coordinates.
+
+        X = (x + 2 * y) // (4 * VOXEL_Y_SIDE)
+        Y = (2 * y - x) // (4 * VOXEL_Y_SIDE)
+
+        logging.debug('({}, {}) -> ({}, {})'.format(x, y, X, Y))
+        if (0 <= X < self.simulation.world_width and
+            0 <= Y < self.simulation.world_height):
+            return X, Y
+        else:
+            return None
+

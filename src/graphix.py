@@ -49,11 +49,17 @@ class GlProgram:
     def uniform1i(self, name, value):
         self.use()
         loc = gl.glGetUniformLocation(self.handle, ctypes.create_string_buffer(name))
+        if loc < 0:
+            logging.warning('Uniform {} is not in the shader.'.format(name))
+            return
         gl.glUniform1i(loc, value);
 
     def uniform2f(self, name, v0, v1):
         self.use()
         loc = gl.glGetUniformLocation(self.handle, ctypes.create_string_buffer(name))
+        if loc < 0:
+            logging.warning('Uniform {} is not in the shader.'.format(name))
+            return
         gl.glUniform2f(loc, v0, v1);
 
 

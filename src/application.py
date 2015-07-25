@@ -52,7 +52,7 @@ class Application:
 
     def new_empty_simulation(self):
         self.menu.close()
-        simu = Simulation(4, 3)
+        simu = Simulation(16, 16)
         self.view.unload()
         self.view.load(simu)
 
@@ -97,6 +97,7 @@ class Application:
                 self.speed += 0.5
             if symbol == key.NUM_SUBTRACT:
                 self.speed = max(0.0, self.speed - 0.5)
+            self.view.on_key_press(symbol, modifiers)
 
         else:
             assert False
