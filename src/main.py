@@ -22,6 +22,8 @@ def main():
 
         pyglet.clock.schedule_interval(app.update, 0.01)
         pyglet.app.run()
+
+        app.autosave()
     except:
         logging.exception('Uncaught Exception')
         sys.exit(1)

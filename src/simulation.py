@@ -33,6 +33,15 @@ class Tile:
     def __repr__(self):
         return 'T[{}][{}]'.format(self.column, self.row)
 
+    def serialize(self):
+        return {'p': self.path}
+
+    @staticmethod
+    def deserialize(col, row, data):
+        self = Tile(Terrain.GRASS, row, col)
+        self.path = data['p']
+        return self
+
 class Person:
     def __init__(self, simu, name, x, y):
         self.simu = simu
@@ -54,11 +63,9 @@ class Person:
                 nextwp = self.waypoints.pop()
                 self.target = (nextwp.column + 0.5, nextwp.row + 0.5)
                 self.action = 'walk'
-                self.pose = 'walk'
                 self.action_started = t
             elif t >= self.action_started + 1.0:
                 self.action = 'walk'
-                self.pose = 'walk'
                 self.action_started = t
                 x, y = (random.uniform(0, 10), random.uniform(0, 10))
                 logging.debug('Person {} has new target {:.1f},{:.1f}'.format(self.name, x, y))
@@ -69,25 +76,56 @@ class Person:
                 logging.debug('Person {} is at {:.1f},{:.1f} and plans to go {}'.format(self.name, self.x, self.y, [(t.column, t.row) for t in self.waypoints]))
         elif self.action == 'walk':
             if self.target[0] < self.x:
-                self.direction = 180
                 self.x -= self.speed * dt
                 self.x = max(self.x, self.target[0])
             elif self.target[0] > self.x:
-                self.direction = 0
                 self.x += self.speed * dt
                 self.x = min(self.x, self.target[0])
             elif self.target[1] < self.y:
-                self.direction = 270
                 self.y -= self.speed * dt
                 self.y = max(self.y, self.target[1])
             elif self.target[1] > self.y:
-                self.direction = 90
                 self.y += self.speed * dt
                 self.y = min(self.y, self.target[1])
             else:
                 self.action = 'wait'
                 self.action_started = t
-                self.pose = 'stand'
+        self.update_pose()
+
+    def update_pose(self):
+        if self.action == 'wait':
+            self.pose = 'stand'
+        elif self.action == 'walk':
+            self.pose = 'walk'
+            if self.target[0] < self.x:
+                self.direction = 180
+            elif self.target[0] > self.x:
+                self.direction = 0
+            elif self.target[1] < self.y:
+                self.direction = 270
+            elif self.target[1] > self.y:
+                self.direction = 90
+        else:
+            assert False, 'unknown action ' + self.action
+
+
+    def serialize(self):
+        return {'name': self.name,
+                'pos': (self.x, self.y),
+                'action': self.action,
+                'action_started': self.action_started,
+                'target': self.target,
+                'waypoints': [(t.column, t.row) for t in self.waypoints]}
+
+    @staticmethod
+    def deserialize(simu, data):
+        self = Person(simu, data['name'], data['pos'][0], data['pos'][1])
+        self.action = data['action']
+        self.action_started = data['action_started']
+        self.target = data['target']
+        self.waypoints = [self.simu.map[c][r] for (c, r) in data['waypoints']]
+        self.update_pose()
+        return self
 
 
 class Simulation:
@@ -208,4 +246,23 @@ class Simulation:
                     openset.add(neighbor)
 
         return None  # no path found
+
+    def serialize(self):
+        return {'world_width': self.world_width,
+                'world_height': self.world_height,
+                'time': self.time,
+                'map': [[tile.serialize() for tile in col] for col in self.map],
+                'persons': [pers.serialize() for pers in self.persons]}
+
+    @staticmethod
+    def deserialize(data):
+        self = Simulation(data['world_width'], data['world_height'])
+        self.map = [[Tile.deserialize(col, row, tile_data) for row, tile_data in enumerate(col_data)] for col, col_data in enumerate(data['map'])]
+        self.persons = [Person.deserialize(self, pers) for pers in data['persons']]
+        self.make_path_graph()
+        self.time = data['time']
+        self.make_path_graph()
+        return self
+
+
 
