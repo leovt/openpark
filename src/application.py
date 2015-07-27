@@ -25,13 +25,12 @@ class Application:
         self.view = SimulationView(self.wm)
 
         self.state = 'menu'
-        self.speed = 1.0
         self.window = window
         logging.debug('The state is {}'.format(self.state))
         self.start_menu()
 
     def update(self, dt):
-        self.view.update(dt * self.speed)
+        self.view.update(dt)
         self.frame_no += 1
 
     def on_draw(self):
@@ -97,21 +96,26 @@ class Application:
                 self.start_menu()
                 self.state = 'menu'
                 logging.debug('The state is {}'.format(self.state))
-            if symbol == key.SPACE:
-                if self.speed:
-                    self.speed = 0
-                else:
-                    self.speed = 1.0
-            if symbol == key.NUM_ADD:
-                self.speed += 0.5
-            if symbol == key.NUM_SUBTRACT:
-                self.speed = max(0.0, self.speed - 0.5)
             if symbol == key.S:
                 self.autosave()
             self.view.on_key_press(symbol, modifiers)
 
         else:
             assert False
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        if self.state == 'simu':
+            self.view.on_mouse_motion(x, y, dx, dy)
+
+    def on_mouse_leave(self, x, y):
+        if self.state == 'simu':
+            self.view.on_mouse_leave(x, y)
+
+    def on_mouse_drag(self, *args):
+        if self.state == 'simu':
+            self.view.on_mouse_drag(*args)
+
+
 
     def on_resize(self, x, y):
         logging.info('Window Resized to {}x{}'.format(x, y))

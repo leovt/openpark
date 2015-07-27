@@ -25,6 +25,9 @@ VOXEL_X_SIDE = VOXEL_Y_SIDE * 2;
 TEXTURE_WIDTH = 512
 TEXTURE_HEIGHT = 256
 
+MOUSE_SCROLL_BORDER_WIDTH = 20
+MOUSE_SCROLL_SPEED = 150
+
 DAY_NAMES = ['1', '8', '15', '22']
 MONTH_NAMES = ['Mar', 'Apr', 'May', 'Jun',
                'Jul', 'Aug', 'Sep', 'Oct']
@@ -83,6 +86,9 @@ class SimulationView:
         self.orientation = 0
         self.screen_origin_x = 0
         self.screen_origin_y = 0
+        self.mouse_x = 0
+        self.mouse_y = 0
+        self.speed = 1.0
 
         self.sprite = sprite.Sprite('../art/guest.ini')
         self.sprite.set_pose('walk')
@@ -107,6 +113,7 @@ class SimulationView:
         assert self.simulation is None
         self.simulation = simulation
         self.label = Label(self.wm.root, '', 0, 0)
+        self.scroll_to(self.screen_width // 2, self.screen_height)
 
     def unload(self):
         self.simulation = None
@@ -114,7 +121,16 @@ class SimulationView:
 
     def update(self, dt):
         if self.simulation:
-            self.simulation.update(dt)
+            self.simulation.update(dt * self.speed)
+        if 0 <= self.mouse_x < MOUSE_SCROLL_BORDER_WIDTH:
+            self.scroll(dt * MOUSE_SCROLL_SPEED, 0)
+        if self.screen_width - MOUSE_SCROLL_BORDER_WIDTH <= self.mouse_x < self.screen_width:
+            self.scroll(-dt * MOUSE_SCROLL_SPEED, 0)
+        if 0 <= self.mouse_y < MOUSE_SCROLL_BORDER_WIDTH:
+            self.scroll(0, -dt * MOUSE_SCROLL_SPEED)
+        if self.screen_height - MOUSE_SCROLL_BORDER_WIDTH <= self.mouse_y < self.screen_height:
+            self.scroll(0, dt * MOUSE_SCROLL_SPEED)
+
 
     def get_map_vertex_data(self):
 
@@ -164,7 +180,6 @@ class SimulationView:
 
         self.draw_map()
         self.draw_sprites()
-        l = list(self.get_sprite_vertex_data())
 
 
     def draw_map(self):
@@ -198,13 +213,30 @@ class SimulationView:
         self.screen_width = x
         self.screen_height = y
         self.scroll_to(x // 2, y // 2)
+        self.mouse_x = x // 2
+        self.mouse_y = y // 2
 
     def on_mouse_press(self, x, y, button, modifiers):
         logging.debug('SimulationView.on_mouse_press({}, {})'.format(x, y))
         tile = self.find_tile_at(x - self.screen_origin_x, self.screen_origin_y - y)
         if not tile:
             return
-        self.simulation.set_path(tile[0], tile[1], button == mouse.LEFT)
+        if button == mouse.LEFT:
+            self.simulation.set_path(tile[0], tile[1], True)
+        elif button == mouse.RIGHT:
+            self.simulation.set_path(tile[0], tile[1], False)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.mouse_x = x
+        self.mouse_y = y
+
+    def on_mouse_leave(self, x, y):
+        self.mouse_x = x
+        self.mouse_y = y
+
+    def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+        if buttons == mouse.MIDDLE:
+            self.scroll(dx, -dy)
 
     def on_key_press(self, symbol, modifiers):
         if symbol == key.UP:
@@ -215,15 +247,23 @@ class SimulationView:
             self.scroll(+20, 0)
         if symbol == key.RIGHT:
             self.scroll(-20, 0)
+        if symbol == key.SPACE:
+            if self.speed:
+                self.speed = 0
+            else:
+                self.speed = 1.0
+        if symbol == key.NUM_ADD:
+            self.speed += 0.5
+        if symbol == key.NUM_SUBTRACT:
+            self.speed = max(0.0, self.speed - 0.5)
 
     def scroll(self, dx, dy):
         self.scroll_to(self.screen_origin_x + dx, self.screen_origin_y + dy)
 
     def scroll_to(self, x, y):
-        self.program.uniform2f(b'screen_origin', x, -y)
+        self.program.uniform2f(b'screen_origin', x // 1, -y // 1)
         self.screen_origin_x = x
         self.screen_origin_y = y
-        logging.info('scroll to {},{}'.format(x, y))
 
     def find_tile_at(self, x, y):
         ''' x,y screen coordinates'''
@@ -231,8 +271,8 @@ class SimulationView:
         # for now we know that the map is at Z=0, so we can directly transform
         # screen coordinates into voxel coordinates.
 
-        X = (x + 2 * y) // (4 * VOXEL_Y_SIDE)
-        Y = (2 * y - x) // (4 * VOXEL_Y_SIDE)
+        X = int((x + 2 * y) // (4 * VOXEL_Y_SIDE))  # integer division ensures rounding down instead of towards zero
+        Y = int((2 * y - x) // (4 * VOXEL_Y_SIDE))
 
         logging.debug('({}, {}) -> ({}, {})'.format(x, y, X, Y))
         if (0 <= X < self.simulation.world_width and
