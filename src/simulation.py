@@ -42,6 +42,11 @@ class Tile:
         self.path = data['p']
         return self
 
+class Object:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
 class Person:
     def __init__(self, simu, name, x, y):
         self.simu = simu
@@ -151,7 +156,7 @@ class Simulation:
         self.make_path_graph()
 
         self.persons = [Person(self, i, i // 3, i % 3) for i in range(10)]
-
+        self.shops = [Object(x=5, y=4)]
         self.time = 0
 
     def set_path(self, column, row, path):

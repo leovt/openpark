@@ -154,6 +154,16 @@ class SimulationView:
 
 
     def get_sprite_vertex_data(self):
+        for shop in self.simulation.shops:
+            dz_down = -VOXEL_Y_SIDE / VOXEL_HEIGHT
+            dz_up = (96 - VOXEL_Y_SIDE) / VOXEL_HEIGHT
+            r = Rect(0, 416 / 512, 96 / 1024, 512 / 512)
+            yield from (shop.x, shop.y + 1, dz_down, 0, r.left, r.bottom, 0, 0)
+            yield from (shop.x + 1, shop.y, dz_down, 0, r.right, r.bottom, 0, 0)
+            yield from (shop.x + 1, shop.y, dz_up, 0, r.right, r.top, 0, 0)
+            yield from (shop.x, shop.y + 1, dz_up, 0, r.left, r.top, 0, 0)
+
+
         for person in self.simulation.persons:
             self.sprite.set_pose(person.pose)
             self.sprite.turn_to(person.direction)
