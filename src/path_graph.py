@@ -142,16 +142,17 @@ class PathGraph:
 
                 # starting at the boundary nodes with the lowest distance do a bfs to recalculate
                 # the invalidated distances
-                current_dist = min(boundary)
-                current_nodes = boundary[current_dist]
-                while current_nodes:
-                    next_nodes = []
-                    for n in current_nodes:
-                        distances[n] = current_dist
-                        next_nodes.extend(nb for nb in n.neighbours if nb not in distances)
-                    current_nodes = next_nodes
-                    current_dist += 1
-                    current_nodes.extend(boundary[current_dist])
+                if boundary:
+                    current_dist = min(boundary)
+                    current_nodes = boundary[current_dist]
+                    while current_nodes:
+                        next_nodes = []
+                        for n in current_nodes:
+                            distances[n] = current_dist
+                            next_nodes.extend(nb for nb in n.neighbours if nb not in distances)
+                        current_nodes = next_nodes
+                        current_dist += 1
+                        current_nodes.extend(boundary[current_dist])
             assert element not in distances
 
     def get_distance_to_poi(self, poi_ref, pos):
