@@ -48,6 +48,14 @@ class Object:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
+    def serialize(self):
+        return self.__dict__
+
+    @staticmethod
+    def deserialize(data):
+        return Object(**data)
+
+
 class Person:
     def __init__(self, simu, name, x, y):
         self.simu = simu
@@ -92,16 +100,21 @@ class Person:
                         self.action = 'wait'
                         self.action_started = t
                         return
-                    nbs = [nb.pos for nb in p.neighbours]
-                    if self.last in nbs and len(nbs) > 1:
-                        nbs.remove(self.last)
+                    nbs = p.neighbours
+                    if len(nbs) > 1:
+                        nbs = [nb for nb in nbs if nb.pos != self.last]
                     self.last = p.pos
                     nb = random.choice(nbs)
-                    if nb[0] == X:
-                        self.next_waypoint = (self.x, nb[1] + random.uniform(0.2, 0.8))
+                    if nb.ptype < path_graph.TYPE_POI_XU:
+                        frac = random.uniform(0.2, 0.8)
                     else:
-                        assert nb[1] == Y
-                        self.next_waypoint = (nb[0] + random.uniform(0.2, 0.8), self.y)
+                        frac = 0.1
+
+                    if nb.pos[0] == X:
+                        self.next_waypoint = (self.x, nb.pos[1] + frac)
+                    else:
+                        assert nb.pos[1] == Y
+                        self.next_waypoint = (nb.pos[0] + frac, self.y)
 
             if self.next_waypoint[0] < self.x:
                 self.x -= self.speed * dt
@@ -172,8 +185,9 @@ class Simulation:
         self.path_graph = path_graph.PathGraph()
 
         self.persons = [Person(self, i, i // 3 + 0.5, i % 3 + 0.5) for i in range(10)]
-        self.shops = [Object(x=5, y=4)]
+        self.shops = []
         self.time = 0
+        self.add_shop(4, 4)
 
     def set_path(self, column, row, path):
         pos = (column, row, 0)
@@ -190,7 +204,8 @@ class Simulation:
             self.map[column][row].path = None
             self.path_graph.remove_path_element((column, row, 0))
         for nb in neighbours:
-            self.map[nb.pos[0]][nb.pos[1]].path = nb.connection_bitfield
+            if nb.ptype < path_graph.TYPE_POI_XU:
+                self.map[nb.pos[0]][nb.pos[1]].path = nb.connection_bitfield
 
     def update(self, delta_sim_seconds):
         self.time += delta_sim_seconds
@@ -201,54 +216,20 @@ class Simulation:
     def current_datetime(self):
         return get_datetime(self.time)
 
-    def find_path(self, a, b, i, j):
-        start = self.map[a][b]
-        goal = self.map[i][j]
-        return None
-#
-#         def heuristic_cost_estimate(A, B):
-#             return abs(A.row - B.row) + abs(A.column - B.column)
-#
-#         # A* Algorithm
-#         closedset = set()  # The set of nodes already evaluated.
-#         openset = {start}  # The set of tentative nodes to be evaluated, initially containing the start node
-#         came_from = {}  # The map of navigated nodes.
-#
-#         g_score = {}
-#         g_score[start] = 0  # Cost from start along best known path.
-#         # Estimated total cost from start to goal through y.
-#         f_score = {}
-#         f_score[start] = g_score[start] + heuristic_cost_estimate(start, goal)
-#
-#         while openset:
-#             current = min(openset, key=lambda A:f_score[A])  # the node in openset having the lowest f_score[] value
-#             if current is goal:
-#                 path = []
-#                 while current != start:
-#                     path.append(current)
-#                     current = came_from[current]
-#                 return path
-#
-#             openset.discard(current)
-#             closedset.add(current)
-#             for neighbor, _ in self.path_graph[current]:
-#                 if neighbor in closedset:
-#                     continue
-#                 tentative_g_score = g_score[current] + 1
-#
-#                 if neighbor not in openset or tentative_g_score < g_score[neighbor]:
-#                     came_from[neighbor] = current
-#                     g_score[neighbor] = tentative_g_score
-#                     f_score[neighbor] = g_score[neighbor] + heuristic_cost_estimate(neighbor, goal)
-#                     openset.add(neighbor)
-#
-#         return None  # no path found
+    def add_shop(self, x, y):
+        shop = Object(x=x, y=y, name='Shop')
+        print ('Path = ', self.map[x][y].path)
+        self.shops.append(shop)
+        print (self.path_graph.path.get((x, y, 0), 'nada'))
+        self.path_graph.add_path_element((x, y, 0), path_graph.TYPE_POI_XD, shop)
+
 
     def serialize(self):
         return {'world_width': self.world_width,
                 'world_height': self.world_height,
                 'time': self.time,
                 'map': [[tile.serialize() for tile in col] for col in self.map],
+                'shops': [shop.serialize() for shop in self.shops],
                 'persons': [pers.serialize() for pers in self.persons]}
 
     @staticmethod
@@ -259,6 +240,9 @@ class Simulation:
             for tile in column:
                 if tile.path is not None:
                     self.set_path(tile.column, tile.row, True)
+        for shop in data['shops']:
+            shop = Object.deserialize(shop)
+            self.add_shop(shop.x, shop.y)
         self.persons = [Person.deserialize(self, pers) for pers in data['persons']]
         self.time = data['time']
         return self
