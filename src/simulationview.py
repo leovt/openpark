@@ -98,6 +98,7 @@ class SimulationView:
 
     def init_gl(self):
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
+        self.sprite_program = GlProgram(shaders.vertex_scene, shaders.fragment_sprite)
         self.buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
@@ -106,7 +107,8 @@ class SimulationView:
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
         self.texture_map = make_texture(self.tiles.filename)
-        self.texture_sprite = make_texture('../art/guest.png')
+        self.texture_sprite = make_texture('../art/guest.png', indexed=True)
+        self.texture_sprite_pal = make_texture('../art/guest_pal.png')
 
 
     def load(self, simulation):
@@ -164,7 +166,7 @@ class SimulationView:
             yield from (shop.x, shop.y + 1, dz_up, 0, r.left, r.top, 0, 0)
 
 
-        for person in self.simulation.persons:
+        for i, person in enumerate(self.simulation.persons):
             self.sprite.set_pose(person.pose)
             self.sprite.turn_to(person.direction)
             r = self.sprite.get_coordinates(self.simulation.time)
@@ -173,10 +175,10 @@ class SimulationView:
             dz_up = self.sprite.offset_y / VOXEL_HEIGHT
             dz_down = -self.sprite.frame_height / VOXEL_HEIGHT + dz_up
 
-            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom, 0, 0)
-            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top, 0, 0)
-            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top, 0, 0)
-            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom, 0, 0)
+            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom, i, 0)
+            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top, i, 0)
+            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top, i, 0)
+            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom, i, 0)
 
     def draw(self):
         if self.simulation is None:
@@ -189,6 +191,11 @@ class SimulationView:
         self.program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
 
         self.draw_map()
+
+        self.sprite_program.use()
+        self.sprite_program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
+        self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
+
         self.draw_sprites()
 
 
@@ -207,7 +214,11 @@ class SimulationView:
     def draw_sprites(self):
         gl.glActiveTexture(gl.GL_TEXTURE0)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_sprite)
-        self.program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
+        self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
+
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_sprite_pal)
+        self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
 
         data = list(self.get_sprite_vertex_data())
         data = (gl.GLfloat * len(data))(*data)
@@ -220,6 +231,7 @@ class SimulationView:
     def on_resize(self, x, y):
         '''update the window manager when the opengl viewport is resized'''
         self.program.uniform2f(b'window_size', x, y)
+        self.sprite_program.uniform2f(b'window_size', x, y)
         self.screen_width = x
         self.screen_height = y
         self.scroll_to(x // 2, y // 2)
@@ -272,6 +284,7 @@ class SimulationView:
 
     def scroll_to(self, x, y):
         self.program.uniform2f(b'screen_origin', x // 1, -y // 1)
+        self.sprite_program.uniform2f(b'screen_origin', x // 1, -y // 1)
         self.screen_origin_x = x
         self.screen_origin_y = y
 

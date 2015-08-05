@@ -184,7 +184,7 @@ class Simulation:
                      for row in range(world_height)] for col in range(world_width)]
         self.path_graph = path_graph.PathGraph()
 
-        self.persons = [Person(self, i, i // 3 + 0.5, i % 3 + 0.5) for i in range(10)]
+        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5) for i in range(32)]
         self.shops = []
         self.time = 0
         self.add_shop(4, 4)

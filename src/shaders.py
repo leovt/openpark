@@ -34,6 +34,20 @@ void main()
 }
 '''
 
+fragment_sprite = b'''
+uniform sampler2D tex;
+uniform sampler2D palette;
+varying vec4 texcoord_;
+
+void main()
+{
+    float index = texture2D(tex, texcoord_.xy).r * 255.0;
+    // index = 5.0;
+    float pal = texcoord_.z;
+    gl_FragColor = texture2D(palette, vec2((index+0.5) / 32.0, (pal+0.5) / 32.0));
+}
+'''
+
 
 vertex_flat = b'''
 attribute vec4 position;

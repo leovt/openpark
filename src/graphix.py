@@ -63,7 +63,7 @@ class GlProgram:
         gl.glUniform2f(loc, v0, v1);
 
 
-def make_texture(filename):
+def make_texture(filename, indexed=False):
     name = gl.GLuint(0)
     gl.glGenTextures(1, pointer(name))
     gl.glBindTexture(gl.GL_TEXTURE_2D, name)
@@ -73,19 +73,34 @@ def make_texture(filename):
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
 
     image = PIL.Image.open(filename)
-    image = image.convert('RGBA')
-    logging.debug(image.mode)
+    if indexed:
+        assert image.mode == 'P'
+    else:
+        image = image.convert('RGBA')
+    logging.debug('loading {} mode={}'.format(filename, image.mode))
 
     width, height = image.size
-    assert len(image.tobytes()) == width * height * 4
-    gl.glTexImage2D(gl.GL_TEXTURE_2D,
-             0,  # level
-             gl.GL_RGBA8,
-             width,
-             height,
-             0,
-             gl.GL_RGBA,
-             gl.GL_UNSIGNED_BYTE,
-             ctypes.create_string_buffer(image.tobytes()))
+    if indexed:
+        assert len(image.tobytes()) == width * height
+        gl.glTexImage2D(gl.GL_TEXTURE_2D,
+                 0,  # level
+                 gl.GL_R8,
+                 width,
+                 height,
+                 0,
+                 gl.GL_RED,
+                 gl.GL_UNSIGNED_BYTE,
+                 ctypes.create_string_buffer(image.tobytes()))
+    else:
+        assert len(image.tobytes()) == width * height * 4
+        gl.glTexImage2D(gl.GL_TEXTURE_2D,
+                 0,  # level
+                 gl.GL_RGBA8,
+                 width,
+                 height,
+                 0,
+                 gl.GL_RGBA,
+                 gl.GL_UNSIGNED_BYTE,
+                 ctypes.create_string_buffer(image.tobytes()))
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
     return name
