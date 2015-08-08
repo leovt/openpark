@@ -57,7 +57,7 @@ class Object:
 
 
 class Person:
-    def __init__(self, simu, name, x, y):
+    def __init__(self, simu, name, x, y, t):
         self.simu = simu
         self.name = name
         self.x = x
@@ -70,6 +70,7 @@ class Person:
         self.last = None
         self.direction = 0
         self.speed = 0.45
+        self.arrival_time = t
 
     def update(self, t, dt):
         if self.action == 'wait':
@@ -184,7 +185,7 @@ class Simulation:
                      for row in range(world_height)] for col in range(world_width)]
         self.path_graph = path_graph.PathGraph()
 
-        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5) for i in range(32)]
+        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5, random.uniform(0, 0.125)) for i in range(32)]
         self.shops = []
         self.time = 0
         self.add_shop(4, 4)

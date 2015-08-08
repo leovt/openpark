@@ -169,7 +169,7 @@ class SimulationView:
         for i, person in enumerate(self.simulation.persons):
             self.sprite.set_pose(person.pose)
             self.sprite.turn_to(person.direction)
-            r = self.sprite.get_coordinates(self.simulation.time)
+            r = self.sprite.get_coordinates(self.simulation.time - person.arrival_time)
 
             dx = self.sprite.offset_x / VOXEL_X_SIDE * 0.5
             dz_up = self.sprite.offset_y / VOXEL_HEIGHT
