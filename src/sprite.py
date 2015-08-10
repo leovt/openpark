@@ -5,9 +5,10 @@ Created on 18 Jul 2015
 '''
 import configparser
 from collections import namedtuple
-import PIL.Image
 from textmanager import Rect
 import logging
+import graphix
+import os.path
 
 PoseInfo = namedtuple('PoseInfo', 'number_of_frames, first_frame')
 
@@ -19,7 +20,10 @@ class Sprite:
         conf = configparser.SafeConfigParser()
         conf.read(inifile)
 
-        # self.image = PIL.Image.open(conf.get('Sprite', 'filename'))
+        self.inifile = inifile
+
+        self.texture = graphix.make_texture(os.path.join(os.path.dirname(inifile), conf.get('Sprite', 'filename')), True)
+        self.texture_pal = graphix.make_texture(os.path.join(os.path.dirname(inifile), conf.get('Sprite', 'palette')), False)
 
         self.frame_width = conf.getint('Sprite', 'frame_width')
         self.frame_height = conf.getint('Sprite', 'frame_height')
@@ -30,19 +34,28 @@ class Sprite:
         self.turn_deg = conf.getint('Sprite', 'turn_deg')
         self.offset_x = conf.getint('Sprite', 'offset_x')
         self.offset_y = conf.getint('Sprite', 'offset_y')
-
-        self.fps = conf.getfloat('Sprite', 'fps')
-
-        poses = [name.strip() for name in conf.get('Sprite', 'poses').split(',')]
-
-
-        self.poses = {}
-        for pose in poses:
-            self.poses[pose] = PoseInfo(conf.getint(pose, 'number_of_frames'),
-                                        conf.getint(pose, 'first_frame'))
-
-        self.current_pose = self.poses[poses[0]]
         self.current_dir = 0
+
+        if conf.has_section('Animation'):
+            self.animated = True
+            self.fps = conf.getfloat('Animation', 'fps')
+
+            poses = [name.strip() for name in conf.get('Animation', 'poses').split(',')]
+
+
+            self.poses = {}
+            for pose in poses:
+                self.poses[pose] = PoseInfo(conf.getint(pose, 'number_of_frames'),
+                                            conf.getint(pose, 'first_frame'))
+
+            self.current_pose = self.poses[poses[0]]
+        else:
+            self.animated = False
+            self.current_pose = PoseInfo(1, 0)
+
+    def __repr__(self):
+        return 'Sprite(%s)' % self.inifile
+
 
     def set_pose(self, pose):
         ''' set the pose to be displayed '''
@@ -58,7 +71,10 @@ class Sprite:
 
     def get_coordinates(self, time):
         ''' get texture coordinates for a quad as a Rect'''
-        frame_no = int(time * self.fps) % self.current_pose.number_of_frames + self.current_pose.first_frame
+        if self.animated:
+            frame_no = int(time * self.fps) % self.current_pose.number_of_frames + self.current_pose.first_frame
+        else:
+            frame_no = 0
         x0 = self.frame_width_uv * self.current_dir
         y0 = self.frame_height_uv * frame_no
         return Rect(x0, y0, x0 + self.frame_width_uv, y0 + self.frame_height_uv)

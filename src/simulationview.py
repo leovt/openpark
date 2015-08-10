@@ -90,9 +90,9 @@ class SimulationView:
         self.mouse_y = 0
         self.speed = 1.0
 
-        self.sprite = sprite.Sprite('../art/guest.ini')
-        self.sprite.set_pose('walk')
-        self.sprite.turn_to(180)
+        self.sprite_pers = sprite.Sprite('../art/guest.ini')
+        self.sprite_shop = sprite.Sprite('../art/shop.ini')
+
         self.tiles = tileset('../art/map.ini')
         self.init_gl()
 
@@ -107,8 +107,6 @@ class SimulationView:
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
 
         self.texture_map = make_texture(self.tiles.filename)
-        self.texture_sprite = make_texture('../art/guest.png', indexed=True)
-        self.texture_sprite_pal = make_texture('../art/guest_pal.png')
 
 
     def load(self, simulation):
@@ -155,30 +153,27 @@ class SimulationView:
                                 u, v, s, t)
 
 
-    def get_sprite_vertex_data(self):
-        for shop in self.simulation.shops:
-            dz_down = -VOXEL_Y_SIDE / VOXEL_HEIGHT
-            dz_up = (96 - VOXEL_Y_SIDE) / VOXEL_HEIGHT
-            r = Rect(0, 416 / 512, 96 / 1024, 512 / 512)
-            yield from (shop.x, shop.y + 1, dz_down, 0, r.left, r.bottom, 0, 0)
-            yield from (shop.x + 1, shop.y, dz_down, 0, r.right, r.bottom, 0, 0)
-            yield from (shop.x + 1, shop.y, dz_up, 0, r.right, r.top, 0, 0)
-            yield from (shop.x, shop.y + 1, dz_up, 0, r.left, r.top, 0, 0)
+    def get_sprite_vertex_data(self, sprite, objects):
+        # TODO: very bad polymorphism, need to put more into sprite class and manage collections of objects better
+        for i, obj in enumerate(objects):
+            if hasattr(obj, 'pose'):
+                sprite.set_pose(obj.pose)
+            sprite.turn_to(obj.direction)
+
+            if hasattr(obj, 'arrival_time'):
+                r = sprite.get_coordinates(self.simulation.time - obj.arrival_time)
+            else:
+                r = sprite.get_coordinates(self.simulation.time)
 
 
-        for i, person in enumerate(self.simulation.persons):
-            self.sprite.set_pose(person.pose)
-            self.sprite.turn_to(person.direction)
-            r = self.sprite.get_coordinates(self.simulation.time - person.arrival_time)
+            dx = sprite.offset_x / VOXEL_X_SIDE * 0.5
+            dz_up = sprite.offset_y / VOXEL_HEIGHT
+            dz_down = -sprite.frame_height / VOXEL_HEIGHT + dz_up
 
-            dx = self.sprite.offset_x / VOXEL_X_SIDE * 0.5
-            dz_up = self.sprite.offset_y / VOXEL_HEIGHT
-            dz_down = -self.sprite.frame_height / VOXEL_HEIGHT + dz_up
-
-            yield from (person.x - dx, person.y + dx, dz_down, 0, r.left, r.bottom, i, 0)
-            yield from (person.x - dx, person.y + dx, dz_up, 0, r.left, r.top, i, 0)
-            yield from (person.x + dx, person.y - dx, dz_up, 0, r.right, r.top, i, 0)
-            yield from (person.x + dx, person.y - dx, dz_down, 0, r.right, r.bottom, i, 0)
+            yield from (obj.x - dx, obj.y + dx, dz_down, 0, r.left, r.bottom, i, 0)
+            yield from (obj.x - dx, obj.y + dx, dz_up, 0, r.left, r.top, i, 0)
+            yield from (obj.x + dx, obj.y - dx, dz_up, 0, r.right, r.top, i, 0)
+            yield from (obj.x + dx, obj.y - dx, dz_down, 0, r.right, r.bottom, i, 0)
 
     def draw(self):
         if self.simulation is None:
@@ -212,20 +207,23 @@ class SimulationView:
         gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
     def draw_sprites(self):
-        gl.glActiveTexture(gl.GL_TEXTURE0)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_sprite)
-        self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
 
-        gl.glActiveTexture(gl.GL_TEXTURE1)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_sprite_pal)
-        self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
+        for sprite, objects in [(self.sprite_pers, self.simulation.persons),
+                                (self.sprite_shop, self.simulation.shops)]:
+            gl.glActiveTexture(gl.GL_TEXTURE0)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture)
+            self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
 
-        data = list(self.get_sprite_vertex_data())
-        data = (gl.GLfloat * len(data))(*data)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+            gl.glActiveTexture(gl.GL_TEXTURE1)
+            gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture_pal)
+            self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
+            data = list(self.get_sprite_vertex_data(sprite, objects))
+            data = (gl.GLfloat * len(data))(*data)
+            gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
+            gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+
+            gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
 
     def on_resize(self, x, y):

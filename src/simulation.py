@@ -218,7 +218,7 @@ class Simulation:
         return get_datetime(self.time)
 
     def add_shop(self, x, y):
-        shop = Object(x=x, y=y, name='Shop')
+        shop = Object(x=x, y=y, name='Shop', direction=180)
         print ('Path = ', self.map[x][y].path)
         self.shops.append(shop)
         print (self.path_graph.path.get((x, y, 0), 'nada'))
