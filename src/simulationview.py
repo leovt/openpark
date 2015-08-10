@@ -94,14 +94,16 @@ class SimulationView:
         self.sprite_shop = sprite.Sprite('../art/shop.ini')
 
         self.tiles = tileset('../art/map.ini')
+        self.map_data_length = None
         self.init_gl()
 
     def init_gl(self):
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
         self.sprite_program = GlProgram(shaders.vertex_scene, shaders.fragment_sprite)
         self.buffer = gl.GLuint(0)
+        self.map_buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
+        gl.glGenBuffers(1, pointer(self.map_buffer))
 
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
@@ -136,9 +138,6 @@ class SimulationView:
 
         du = VOXEL_X_SIDE / TEXTURE_WIDTH
         dv = VOXEL_Y_SIDE / TEXTURE_HEIGHT
-
-        uv = [((1 + 2 * (n % 4)) * du, (2 + 2 * (n // 4)) * dv) for n in range(16)]
-
 
         floor = self.tiles.tiles['Grass']
         points = [(0, 0), (1, 0), (1, 1), (0, 1)]
@@ -182,8 +181,8 @@ class SimulationView:
         self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
 
         self.program.use()
-        self.program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
-        self.program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
+        self.program.vertex_attrib_pointer(self.map_buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
+        self.program.vertex_attrib_pointer(self.map_buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
 
         self.draw_map()
 
@@ -199,17 +198,20 @@ class SimulationView:
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.texture_map)
         self.program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
 
-        data = list(self.get_map_vertex_data())
-        data = (gl.GLfloat * len(data))(*data)
-        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
-        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.map_buffer)
+        if self.simulation.map_dirty:
+            data = list(self.get_map_vertex_data())
+            data = (gl.GLfloat * len(data))(*data)
+            self.simulation.map_dirty = False
+            gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+            self.map_data_length = len(data) // 8
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
+        gl.glDrawArrays(gl.GL_QUADS, 0, self.map_data_length)
 
     def draw_sprites(self):
 
-        for sprite, objects in [(self.sprite_pers, self.simulation.persons),
-                                (self.sprite_shop, self.simulation.shops)]:
+        for sprite, objects in [(self.sprite_shop, self.simulation.shops),
+                                (self.sprite_pers, self.simulation.persons)]:
             gl.glActiveTexture(gl.GL_TEXTURE0)
             gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture)
             self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0

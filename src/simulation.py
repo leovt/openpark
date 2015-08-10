@@ -183,6 +183,7 @@ class Simulation:
         self.world_height = world_height
         self.map = [[Tile(Terrain.GRASS, row, col)
                      for row in range(world_height)] for col in range(world_width)]
+        self.map_dirty = True
         self.path_graph = path_graph.PathGraph()
 
         self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5, random.uniform(0, 0.125)) for i in range(32)]
@@ -191,6 +192,7 @@ class Simulation:
         self.add_shop(4, 4)
 
     def set_path(self, column, row, path):
+        self.map_dirty = True
         pos = (column, row, 0)
         if path:
             if pos in self.path_graph.path:
