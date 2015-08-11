@@ -22,7 +22,7 @@ void main()
     world = 2.0 * world / window_size - vec2(1.0, -1.0);
     texcoord_ = texcoord;
     float zscale = map_rows + map_cols;
-    gl_Position = vec4(world, (position.x + position.y)/zscale, 1.0); 
+    gl_Position = vec4(world, position.w, 1.0); 
 }
 '''
 

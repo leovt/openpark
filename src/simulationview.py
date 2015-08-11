@@ -38,6 +38,52 @@ def format_date(datetime):
 
     return '{} {}, {}'.format(MONTH_NAMES[month], DAY_NAMES[day], year + YEAR_OFFSET)
 
+ZMODE_BACK = 7
+ZMODE_BOTTOM = 6
+ZMODE_SUBVOX_BACK = 5
+ZMODE_CENTER = 4
+ZMODE_SUBVOX_MIDDLE = 3
+ZMODE_SUBVOX_FRONT = 2
+ZMODE_TOP = 1
+ZMODE_FRONT = 0
+
+def zbuffer(x, y, z, mode):
+    ''' calculate a modified zbuffer value for the object at tile x,y '''
+
+    # assume 24 bit buffer
+    # bit |--------|--------|----|----|
+    #       map xy   map z   mode sub
+    # msb byte is the voxel (integer) position
+
+    xf = x - int(x)
+    yf = y - int(y)
+    sub = (xf % 0.5 + yf % 0.5) * (VOXEL_Y_SIDE // 2)
+
+    if mode is None:
+        xf = x - int(x)
+        yf = y - int(y)
+
+        if xf >= 0.5 and yf >= 0.5:
+            mode = ZMODE_SUBVOX_BACK
+        elif xf < 0.5 and yf < 0.5:
+            mode = ZMODE_SUBVOX_FRONT
+        else:
+            mode = ZMODE_SUBVOX_MIDDLE
+
+
+    mapxy = int(x) + int(y)
+    assert 0 <= mapxy < 256
+    mapz = int(z)
+    assert 0 <= mapz < 256
+    assert 0 <= mode < 16
+    assert 0 <= sub < 16
+
+    return (sub + 0x10 * mode + 0x100 * mapz + 0x10000 * mapxy) / 0x1000000
+
+
+
+
+
 class tileset:
     def __init__(self, inifile):
         conf = configparser.SafeConfigParser()
@@ -135,20 +181,19 @@ class SimulationView:
 
 
     def get_map_vertex_data(self):
-
-        du = VOXEL_X_SIDE / TEXTURE_WIDTH
-        dv = VOXEL_Y_SIDE / TEXTURE_HEIGHT
-
         floor = self.tiles.tiles['Grass']
         points = [(0, 0), (1, 0), (1, 1), (0, 1)]
 
         pathtiles = {p:self.tiles.tiles['Road%d' % p] for p in range(16)}
         pathtiles[None] = [(0, 0), (0, 0), (0, 0), (0, 0)]
 
+        z = 0.0
+
         for x, row in enumerate(self.simulation.map):
             for y, tile in enumerate(row):
+                zbuf = zbuffer(x, y, z, ZMODE_BOTTOM)
                 for (dx, dy), (u, v), (s, t) in zip(points, floor, pathtiles[tile.path]):
-                    yield from (x + dx, y + dy, 0.0, 1.0,
+                    yield from (x + dx, y + dy, z, zbuf,
                                 u, v, s, t)
 
 
@@ -157,6 +202,9 @@ class SimulationView:
         for i, obj in enumerate(objects):
             if hasattr(obj, 'pose'):
                 sprite.set_pose(obj.pose)
+                mode = None
+            else:
+                mode = ZMODE_CENTER
             sprite.turn_to(obj.direction)
 
             if hasattr(obj, 'arrival_time'):
@@ -169,10 +217,12 @@ class SimulationView:
             dz_up = sprite.offset_y / VOXEL_HEIGHT
             dz_down = -sprite.frame_height / VOXEL_HEIGHT + dz_up
 
-            yield from (obj.x - dx, obj.y + dx, dz_down, 0, r.left, r.bottom, i, 0)
-            yield from (obj.x - dx, obj.y + dx, dz_up, 0, r.left, r.top, i, 0)
-            yield from (obj.x + dx, obj.y - dx, dz_up, 0, r.right, r.top, i, 0)
-            yield from (obj.x + dx, obj.y - dx, dz_down, 0, r.right, r.bottom, i, 0)
+            zbuf = zbuffer(obj.x, obj.y, 0.0, mode)
+
+            yield from (obj.x - dx, obj.y + dx, dz_down, zbuf, r.left, r.bottom, i, 0)
+            yield from (obj.x - dx, obj.y + dx, dz_up, zbuf, r.left, r.top, i, 0)
+            yield from (obj.x + dx, obj.y - dx, dz_up, zbuf, r.right, r.top, i, 0)
+            yield from (obj.x + dx, obj.y - dx, dz_down, zbuf, r.right, r.bottom, i, 0)
 
     def draw(self):
         if self.simulation is None:
