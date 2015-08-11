@@ -177,6 +177,7 @@ class SimulationView:
     def draw(self):
         if self.simulation is None:
             return
+        gl.glEnable(gl.GL_DEPTH_TEST)
         now = self.simulation.current_datetime()
         self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
 
@@ -191,6 +192,7 @@ class SimulationView:
         self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
 
         self.draw_sprites()
+        gl.glDisable(gl.GL_DEPTH_TEST)
 
 
     def draw_map(self):

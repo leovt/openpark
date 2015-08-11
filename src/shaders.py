@@ -11,6 +11,9 @@ const float VOXEL_HEIGHT = 19.0;
 const float VOXEL_Y_SIDE = 24.0;
 const float VOXEL_X_SIDE = 48.0;
 
+const float map_rows = 16.0;
+const float map_cols = 16.0;
+
 void main()
 {
     vec2 world;
@@ -18,7 +21,8 @@ void main()
     world = world + screen_origin;
     world = 2.0 * world / window_size - vec2(1.0, -1.0);
     texcoord_ = texcoord;
-    gl_Position = vec4(world, 0.0, 1.0); 
+    float zscale = map_rows + map_cols;
+    gl_Position = vec4(world, (position.x + position.y)/zscale, 1.0); 
 }
 '''
 
@@ -42,6 +46,8 @@ varying vec4 texcoord_;
 void main()
 {
     float index = texture2D(tex, texcoord_.xy).r * 255.0;
+    if (index == 0.0)
+        discard;
     // index = 5.0;
     float pal = texcoord_.z;
     gl_FragColor = texture2D(palette, vec2((index+0.5) / 32.0, (pal+0.5) / 32.0));
