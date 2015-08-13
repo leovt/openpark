@@ -38,8 +38,8 @@ def format_date(datetime):
 
     return '{} {}, {}'.format(MONTH_NAMES[month], DAY_NAMES[day], year + YEAR_OFFSET)
 
-ZMODE_BACK = 7
-ZMODE_BOTTOM = 6
+ZMODE_BACK = 6
+ZMODE_BOTTOM = 7
 ZMODE_SUBVOX_BACK = 5
 ZMODE_CENTER = 4
 ZMODE_SUBVOX_MIDDLE = 3
@@ -82,6 +82,34 @@ def zbuffer(x, y, z, mode):
 
 
 
+def passage_vtx(x, y, direction):
+    direction = direction % 2
+
+    dx = 48 / VOXEL_X_SIDE * 0.5
+    dz_up = 96 / VOXEL_HEIGHT
+    dz_down = -96 / VOXEL_HEIGHT + dz_up
+
+    # back
+    u = 2 * 96 + 48 + 96 * direction
+    v = 2 * 96
+
+    zbuf = zbuffer(x, y, 0.0, ZMODE_BACK)
+
+    yield from (x - dx, y + dx, dz_down, zbuf, (u - 48) / 512, v / 256, 0, 0)
+    yield from (x - dx, y + dx, dz_up, zbuf, (u - 48) / 512, (v - 96) / 256, 0, 0)
+    yield from (x + dx, y - dx, dz_up, zbuf, (u + 48) / 512, (v - 96) / 256, 0, 0)
+    yield from (x + dx, y - dx, dz_down, zbuf, (u + 48) / 512, v / 256, 0, 0)
+
+    # front
+    u = 48 + 96 * direction
+    v = 2 * 96
+
+    zbuf = zbuffer(x, y, 0.0, ZMODE_FRONT)
+
+    yield from (x - dx, y + dx, dz_down, zbuf, (u - 48) / 512, v / 256, 0, 0)
+    yield from (x - dx, y + dx, dz_up, zbuf, (u - 48) / 512, (v - 96) / 256, 0, 0)
+    yield from (x + dx, y - dx, dz_up, zbuf, (u + 48) / 512, (v - 96) / 256, 0, 0)
+    yield from (x + dx, y - dx, dz_down, zbuf, (u + 48) / 512, v / 256, 0, 0)
 
 
 class tileset:
@@ -223,6 +251,10 @@ class SimulationView:
             yield from (obj.x - dx, obj.y + dx, dz_up, zbuf, r.left, r.top, i, 0)
             yield from (obj.x + dx, obj.y - dx, dz_up, zbuf, r.right, r.top, i, 0)
             yield from (obj.x + dx, obj.y - dx, dz_down, zbuf, r.right, r.bottom, i, 0)
+
+        if objects is (self.simulation.shops):
+            yield from passage_vtx(2, 5, 1)
+            yield from passage_vtx(7, 3, 2)
 
     def draw(self):
         if self.simulation is None:
