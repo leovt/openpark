@@ -16,9 +16,9 @@ from windowmanager import Label
 
 from graphix import make_texture
 
-VOXEL_HEIGHT = 19;
-VOXEL_Y_SIDE = 24;
-VOXEL_X_SIDE = VOXEL_Y_SIDE * 2;
+VOXEL_HEIGHT = 24
+VOXEL_Y_SIDE = 24
+VOXEL_X_SIDE = VOXEL_Y_SIDE * 2
 
 TEXTURE_WIDTH = 512
 TEXTURE_HEIGHT = 256

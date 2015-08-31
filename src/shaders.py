@@ -7,7 +7,7 @@ varying vec4 texcoord_;
 uniform vec2 window_size;
 uniform vec2 screen_origin;
 
-const float VOXEL_HEIGHT = 19.0;
+const float VOXEL_HEIGHT = 24.0;
 const float VOXEL_Y_SIDE = 24.0;
 const float VOXEL_X_SIDE = 48.0;
 
