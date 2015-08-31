@@ -13,10 +13,8 @@ import configparser
 import shaders
 from graphix import GlProgram
 from windowmanager import Label
-import sprite
 
 from graphix import make_texture
-from textmanager import Rect
 
 VOXEL_HEIGHT = 19;
 VOXEL_Y_SIDE = 24;
@@ -79,6 +77,8 @@ def zbuffer(x, y, z, mode):
     assert 0 <= sub < 16
 
     return (sub + 0x10 * mode + 0x100 * mapz + 0x10000 * mapxy) / 0x1000000
+
+from sprite import Sprite
 
 
 
@@ -164,8 +164,8 @@ class SimulationView:
         self.mouse_y = 0
         self.speed = 1.0
 
-        self.sprite_pers = sprite.Sprite('../art/guest.ini')
-        self.sprite_shop = sprite.Sprite('../art/shop.ini')
+        self.sprite_pers = Sprite('../art/guest.ini')
+        self.sprite_shop = Sprite('../art/shop.ini')
 
         self.tiles = tileset('../art/map.ini')
         self.map_data_length = None
@@ -226,31 +226,8 @@ class SimulationView:
 
 
     def get_sprite_vertex_data(self, sprite, objects):
-        # TODO: very bad polymorphism, need to put more into sprite class and manage collections of objects better
         for i, obj in enumerate(objects):
-            if hasattr(obj, 'pose'):
-                sprite.set_pose(obj.pose)
-                mode = None
-            else:
-                mode = ZMODE_CENTER
-            sprite.turn_to(obj.direction)
-
-            if hasattr(obj, 'arrival_time'):
-                r = sprite.get_coordinates(self.simulation.time - obj.arrival_time)
-            else:
-                r = sprite.get_coordinates(self.simulation.time)
-
-
-            dx = sprite.offset_x / VOXEL_X_SIDE * 0.5
-            dz_up = sprite.offset_y / VOXEL_HEIGHT
-            dz_down = -sprite.frame_height / VOXEL_HEIGHT + dz_up
-
-            zbuf = zbuffer(obj.x, obj.y, 0.0, mode)
-
-            yield from (obj.x - dx, obj.y + dx, dz_down, zbuf, r.left, r.bottom, i, 0)
-            yield from (obj.x - dx, obj.y + dx, dz_up, zbuf, r.left, r.top, i, 0)
-            yield from (obj.x + dx, obj.y - dx, dz_up, zbuf, r.right, r.top, i, 0)
-            yield from (obj.x + dx, obj.y - dx, dz_down, zbuf, r.right, r.bottom, i, 0)
+            yield from sprite.vertex_data(self.simulation.time, **obj.__dict__)
 
         if objects is (self.simulation.shops):
             yield from passage_vtx(2, 5, 1)

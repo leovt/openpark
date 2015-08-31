@@ -57,7 +57,7 @@ class Object:
 
 
 class Person:
-    def __init__(self, simu, name, x, y, t):
+    def __init__(self, simu, name, x, y, t, palette):
         self.simu = simu
         self.name = name
         self.x = x
@@ -71,6 +71,7 @@ class Person:
         self.direction = 0
         self.speed = 0.45
         self.arrival_time = t
+        self.palette = palette
 
     def update(self, t, dt):
         if self.action == 'wait':
@@ -160,7 +161,7 @@ class Person:
 
     @staticmethod
     def deserialize(simu, data):
-        self = Person(simu, data['name'], data['pos'][0], data['pos'][1])
+        self = Person(simu, data['name'], data['pos'][0], data['pos'][1], data['t'], data['pal'])
         self.action = data['action']
         self.action_started = data['action_started']
         self.target = data['target']
@@ -186,7 +187,7 @@ class Simulation:
         self.map_dirty = True
         self.path_graph = path_graph.PathGraph()
 
-        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5, random.uniform(0, 0.125)) for i in range(32)]
+        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5, random.uniform(0, 1), i) for i in range(32)]
         self.shops = []
         self.time = 0
         self.add_shop(4, 4)
