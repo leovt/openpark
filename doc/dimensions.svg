@@ -15,7 +15,10 @@
    id="svg2"
    version="1.1"
    inkscape:version="0.48.4 r9939"
-   sodipodi:docname="dimensions.svg">
+   sodipodi:docname="dimensions.svg"
+   inkscape:export-filename="/home/leonhard/workspace/OpenPark/doc/dimensions.png"
+   inkscape:export-xdpi="400.24844"
+   inkscape:export-ydpi="400.24844">
   <defs
      id="defs4">
     <pattern
@@ -72,7 +75,7 @@
      inkscape:pageshadow="2"
      inkscape:zoom="3.6761905"
      inkscape:cx="116.28527"
-     inkscape:cy="26.435943"
+     inkscape:cy="37.316772"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="true"
