@@ -10,7 +10,8 @@ import logging
 import graphix
 import os.path
 
-from simulationview import VOXEL_HEIGHT, VOXEL_X_SIDE, VOXEL_Y_SIDE, zbuffer, ZMODE_CENTER
+from simulationview import (VOXEL_HEIGHT, VOXEL_X_SIDE, VOXEL_Y_SIDE,
+                            zbuffer, ZMODE_CENTER, ZMODE_FRONT, ZMODE_BACK)
 
 PoseInfo = namedtuple('PoseInfo', 'number_of_frames, first_frame')
 
@@ -27,8 +28,12 @@ class Sprite:
         self.texture = graphix.make_texture(os.path.join(os.path.dirname(inifile), conf.get('Sprite', 'filename')), True)
         self.texture_pal = graphix.make_texture(os.path.join(os.path.dirname(inifile), conf.get('Sprite', 'palette')), False)
 
+        self.frame_left = conf.getint('Sprite', 'frame_left')
+        self.frame_top = conf.getint('Sprite', 'frame_top')
         self.frame_width = conf.getint('Sprite', 'frame_width')
         self.frame_height = conf.getint('Sprite', 'frame_height')
+        self.frame_left_uv = self.frame_left / conf.getint('Sprite', 'tex_width')
+        self.frame_top_uv = self.frame_top / conf.getint('Sprite', 'tex_height')
         self.frame_width_uv = self.frame_width / conf.getint('Sprite', 'tex_width')
         self.frame_height_uv = self.frame_height / conf.getint('Sprite', 'tex_height')
 
@@ -37,12 +42,12 @@ class Sprite:
         self.offset_x = conf.getint('Sprite', 'offset_x')
         self.offset_y = conf.getint('Sprite', 'offset_y')
 
-        directions = conf.getint('Sprite', 'offset_y')
+        self.directions = conf.getint('Sprite', 'directions')
         layers = conf.get('Sprite', 'layers').split()
 
-        mode = {'auto': None, 'center': ZMODE_CENTER}
+        mode = {'auto': None, 'center': ZMODE_CENTER, 'front': ZMODE_FRONT, 'back': ZMODE_BACK}
 
-        self.layers = [(mode[layer], i * directions * self.frame_width_uv)
+        self.layers = [(mode[layer], i * self.directions * self.frame_width_uv)
                        for i, layer in enumerate(layers)]
 
 
@@ -86,13 +91,14 @@ class Sprite:
             current_dir = ((direction - self.start_deg + 360) % 360) // self.turn_deg
         else:
             current_dir = ((-direction + self.start_deg + 360) % 360) // (-self.turn_deg)
+        current_dir %= self.directions
 
         if self.animated:
             frame_no = int(time * self.fps) % current_pose.number_of_frames + current_pose.first_frame
         else:
             frame_no = 0
 
-        x0 = self.frame_width_uv * current_dir
-        y0 = self.frame_height_uv * frame_no
+        x0 = self.frame_left_uv + self.frame_width_uv * current_dir
+        y0 = self.frame_top_uv + self.frame_height_uv * frame_no
         return Rect(x0, y0, x0 + self.frame_width_uv, y0 + self.frame_height_uv)
 
