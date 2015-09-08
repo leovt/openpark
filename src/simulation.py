@@ -6,12 +6,14 @@ Created on 8 Jul 2015
 
 import enum
 import path_graph
+from math import floor
+from itertools import count
+
 @enum.unique
 class Terrain(enum.Enum):
     GRASS = 1
 
 import random
-import logging
 
 SECONDS_PER_DAY = 120
 DAYS_PER_MONTH = 4
@@ -73,6 +75,32 @@ class Person:
         self.arrival_time = t
         self.palette = palette
 
+
+    def get_next_waypoint(self):
+        X = floor(self.x)
+        Y = floor(self.y)
+        p = self.simu.path_graph.path.get((X, Y, 0))
+        if p is None:  # we are not on a path
+            return None
+        if not p.neighbours:  # we are on an isolated path
+            return None
+        nbs = p.neighbours
+        if len(nbs) > 1:
+            nbs = [nb for nb in nbs if nb.pos != self.last]
+        self.last = p.pos
+        nb = random.choice(nbs)
+        if nb.ptype < path_graph.TYPE_POI_XU:
+            frac = random.uniform(0.2, 0.8)
+        elif nb.ptype in (path_graph.TYPE_POI_XU, path_graph.TYPE_POI_YU):
+            frac = 0.9
+        else:
+            frac = 0.1
+        if nb.pos[0] == X:
+            return self.x, nb.pos[1] + frac
+        else:
+            assert nb.pos[1] == Y
+            return nb.pos[0] + frac, self.y
+
     def update(self, t, dt):
         if self.action == 'wait':
             if t >= self.action_started + 1.0:
@@ -86,37 +114,16 @@ class Person:
 
         elif self.action == 'walk':
             if self.next_waypoint is None:
-                if self.target:
-                    assert False, 'Not yet implemented'
+                if (floor(self.x), floor(self.y), 0) == self.simu.map_entrance:
+                    # walked out, quit
+                    self.simu.persons.remove(self)
                 else:
-                    X = int(self.x)
-                    Y = int(self.y)
-                    p = self.simu.path_graph.path.get((X, Y, 0))
-                    if p is None:
-                        # we are not on a path
-                        self.action = 'wait'
-                        self.action_started = t
-                        return
-                    if not p.neighbours:
-                        # we are on an isolated path
-                        self.action = 'wait'
-                        self.action_started = t
-                        return
-                    nbs = p.neighbours
-                    if len(nbs) > 1:
-                        nbs = [nb for nb in nbs if nb.pos != self.last]
-                    self.last = p.pos
-                    nb = random.choice(nbs)
-                    if nb.ptype < path_graph.TYPE_POI_XU:
-                        frac = random.uniform(0.2, 0.8)
-                    else:
-                        frac = 0.1
+                    self.next_waypoint = self.get_next_waypoint()
 
-                    if nb.pos[0] == X:
-                        self.next_waypoint = (self.x, nb.pos[1] + frac)
-                    else:
-                        assert nb.pos[1] == Y
-                        self.next_waypoint = (nb.pos[0] + frac, self.y)
+            if self.next_waypoint is None:
+                self.action = 'wait'
+                self.action_started = t
+                return None
 
             if self.next_waypoint[0] < self.x:
                 self.x -= self.speed * dt
@@ -187,10 +194,29 @@ class Simulation:
         self.map_dirty = True
         self.path_graph = path_graph.PathGraph()
 
-        self.persons = [Person(self, i, i // 6 * 2 + 0.5, i % 6 * 2 + 0.5, random.uniform(0, 1), i) for i in range(32)]
-        self.shops = []
+        self.persons = []
+        self.scene = []
+        self.voxel = {}
         self.time = 0
+
+        self.map_entrance = (5, -1, 0)
+        self.path_graph.add_path_element(self.map_entrance, path_graph.TYPE_POI_YU, 'MapEntrance')
+
         self.add_shop(4, 4)
+        self.add_entrance(5, 1)
+
+        self.t_next_person = 1
+        self.person_freq = 0.1  # on average 1 person every 10 sec
+        self.person_ids = iter(count(1))
+
+    def remove_scenery(self, x, y, z):
+        obj = self.voxel.get((x, y, z), None)
+        if obj:
+            self.scene.remove(obj)
+            delpos = [pos for pos, ob in self.voxel.items() if ob is obj]
+            for pos in delpos:
+                del self.voxel[pos]
+        self.set_path(x, y, False)
 
     def set_path(self, column, row, path):
         self.map_dirty = True
@@ -214,6 +240,16 @@ class Simulation:
     def update(self, delta_sim_seconds):
         self.time += delta_sim_seconds
         if delta_sim_seconds > 0:
+            if self.time > self.t_next_person:
+                self.t_next_person += random.expovariate(self.person_freq)
+                pid = next(self.person_ids)
+                dx = random.uniform(0.2, 0.8)
+                pers = Person(self, 'Guest %d' % pid, self.map_entrance[0] + dx, 0, self.time, random.randrange(32))
+                pers.next_waypoint = (self.map_entrance[0] + dx, random.uniform(0.2, 0.8))
+                pers.action = 'walk'
+                pers.last = self.map_entrance
+                self.persons.append(pers)
+
             for person in self.persons:
                 person.update(self.time, delta_sim_seconds)
 
@@ -221,19 +257,25 @@ class Simulation:
         return get_datetime(self.time)
 
     def add_shop(self, x, y):
-        shop = Object(x=x, y=y, name='Shop', direction=180)
-        print ('Path = ', self.map[x][y].path)
-        self.shops.append(shop)
-        print (self.path_graph.path.get((x, y, 0), 'nada'))
+        shop = Object(x=x, y=y, name='Shop', direction=180, type='shop')
+        self.scene.append(shop)
         self.path_graph.add_path_element((x, y, 0), path_graph.TYPE_POI_XD, shop)
+        self.voxel[x, y, 0] = shop
+        self.voxel[x, y, 1] = shop
 
+    def add_entrance(self, x, y):
+        entr = Object(x=x, y=y, direction=90, type='entrance', name='Park Entrance')
+        self.scene.append(entr)
+        self.path_graph.add_path_element((x, y, 0), path_graph.TYPE_FLAT, entr)
+        self.voxel[x, y, 0] = entr
+        self.voxel[x, y, 1] = entr
 
     def serialize(self):
         return {'world_width': self.world_width,
                 'world_height': self.world_height,
                 'time': self.time,
                 'map': [[tile.serialize() for tile in col] for col in self.map],
-                'shops': [shop.serialize() for shop in self.shops],
+                'scene': [element.serialize() for element in self.scene],
                 'persons': [pers.serialize() for pers in self.persons]}
 
     @staticmethod
@@ -244,9 +286,7 @@ class Simulation:
             for tile in column:
                 if tile.path is not None:
                     self.set_path(tile.column, tile.row, True)
-        for shop in data['shops']:
-            shop = Object.deserialize(shop)
-            self.add_shop(shop.x, shop.y)
+
         self.persons = [Person.deserialize(self, pers) for pers in data['persons']]
         self.time = data['time']
         return self

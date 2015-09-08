@@ -166,6 +166,7 @@ class SimulationView:
 
         self.sprite_pers = Sprite('../art/guest.ini')
         self.sprite_shop = Sprite('../art/shop.ini')
+        self.sprite_entrance = Sprite('../art/entrance.ini')
 
         self.tiles = tileset('../art/map.ini')
         self.map_data_length = None
@@ -229,9 +230,9 @@ class SimulationView:
         for i, obj in enumerate(objects):
             yield from sprite.vertex_data(self.simulation.time, **obj.__dict__)
 
-        if objects is (self.simulation.shops):
-            yield from passage_vtx(2, 5, 1)
-            yield from passage_vtx(7, 3, 2)
+#         if objects is (self.simulation.shops):
+#             yield from passage_vtx(2, 5, 1)
+#             yield from passage_vtx(7, 3, 2)
 
     def draw(self):
         if self.simulation is None:
@@ -250,7 +251,8 @@ class SimulationView:
         self.sprite_program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
         self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
 
-        self.draw_sprites()
+        self.draw_scene()
+        self.draw_persons()
         gl.glDisable(gl.GL_DEPTH_TEST)
 
 
@@ -269,24 +271,40 @@ class SimulationView:
 
         gl.glDrawArrays(gl.GL_QUADS, 0, self.map_data_length)
 
-    def draw_sprites(self):
+    def draw_persons(self):
+        sprite = self.sprite_pers
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture)
+        self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
 
-        for sprite, objects in [(self.sprite_shop, self.simulation.shops),
-                                (self.sprite_pers, self.simulation.persons)]:
-            gl.glActiveTexture(gl.GL_TEXTURE0)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture)
-            self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture_pal)
+        self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
 
-            gl.glActiveTexture(gl.GL_TEXTURE1)
-            gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture_pal)
-            self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
+        data = list(self.get_sprite_vertex_data(sprite, self.simulation.persons))
+        data = (gl.GLfloat * len(data))(*data)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
-            data = list(self.get_sprite_vertex_data(sprite, objects))
-            data = (gl.GLfloat * len(data))(*data)
-            gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
-            gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
-            gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
+    def draw_scene(self):
+        sprite = self.sprite_shop
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture)
+        self.sprite_program.uniform1i(b"tex", 0)  # set to 0 because the texture is bound to GL_TEXTURE0
+
+        gl.glActiveTexture(gl.GL_TEXTURE1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture_pal)
+        self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
+
+        sprites = {'shop': self.sprite_shop, 'entrance': self.sprite_entrance}
+        data = list(d for obj in self.simulation.scene for d in sprites[obj.type].vertex_data(self.simulation.time, **obj.__dict__))
+        data = (gl.GLfloat * len(data))(*data)
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
 
     def on_resize(self, x, y):
@@ -307,7 +325,7 @@ class SimulationView:
         if button == mouse.LEFT:
             self.simulation.set_path(tile[0], tile[1], True)
         elif button == mouse.RIGHT:
-            self.simulation.set_path(tile[0], tile[1], False)
+            self.simulation.remove_scenery(tile[0], tile[1], 0)
 
     def on_mouse_motion(self, x, y, dx, dy):
         self.mouse_x = x
