@@ -15,6 +15,9 @@ from graphix import GlProgram
 from windowmanager import Label
 
 from graphix import make_texture
+import ctypes
+import math
+from collections import defaultdict
 
 VOXEL_HEIGHT = 24
 VOXEL_Y_SIDE = 24
@@ -45,7 +48,7 @@ ZMODE_SUBVOX_FRONT = 2
 ZMODE_TOP = 1
 ZMODE_FRONT = 0
 
-def zbuffer(x, y, z, mode):
+def zbuffer(x, y, z, mode, sub=None):
     ''' calculate a modified zbuffer value for the object at tile x,y '''
 
     # assume 24 bit buffer
@@ -53,9 +56,10 @@ def zbuffer(x, y, z, mode):
     #       map xy   map z   mode sub
     # msb byte is the voxel (integer) position
 
-    xf = x - int(x)
-    yf = y - int(y)
-    sub = (xf % 0.5 + yf % 0.5) * (VOXEL_Y_SIDE // 2)
+    if sub is None:
+        xf = x - int(x)
+        yf = y - int(y)
+        sub = (xf % 0.5 + yf % 0.5) * (VOXEL_Y_SIDE // 2)
 
     if mode is None:
         xf = x - int(x)
@@ -73,44 +77,21 @@ def zbuffer(x, y, z, mode):
     assert 0 <= mapxy < 256
     mapz = int(z)
     assert 0 <= mapz < 256
-    assert 0 <= mode < 16
-    assert 0 <= sub < 16
+    assert 0 <= mode < 8
+    assert 0 <= sub < 32
 
-    return (sub + 0x10 * mode + 0x100 * mapz + 0x10000 * mapxy) / 0x1000000
+    return (sub + 0x20 * mode + 0x100 * mapz + 0x10000 * mapxy) / 0x1000000
+
+
+def decode_zbuffer(value):
+    value = int(value * 0x1000000 + 0.5)
+    value, sub = divmod(value, 0x20)
+    value, mode = divmod(value, 0x08)
+    value, z = divmod(value, 0x100)
+    return value, z, mode, sub
+
 
 from sprite import Sprite
-
-
-
-def passage_vtx(x, y, direction):
-    direction = direction % 2
-
-    dx = 48 / VOXEL_X_SIDE * 0.5
-    dz_up = 96 / VOXEL_HEIGHT
-    dz_down = -96 / VOXEL_HEIGHT + dz_up
-
-    # back
-    u = 2 * 96 + 48 + 96 * direction
-    v = 2 * 96
-
-    zbuf = zbuffer(x, y, 0.0, ZMODE_BACK)
-
-    yield from (x - dx, y + dx, dz_down, zbuf, (u - 48) / 512, v / 256, 0, 0)
-    yield from (x - dx, y + dx, dz_up, zbuf, (u - 48) / 512, (v - 96) / 256, 0, 0)
-    yield from (x + dx, y - dx, dz_up, zbuf, (u + 48) / 512, (v - 96) / 256, 0, 0)
-    yield from (x + dx, y - dx, dz_down, zbuf, (u + 48) / 512, v / 256, 0, 0)
-
-    # front
-    u = 48 + 96 * direction
-    v = 2 * 96
-
-    zbuf = zbuffer(x, y, 0.0, ZMODE_FRONT)
-
-    yield from (x - dx, y + dx, dz_down, zbuf, (u - 48) / 512, v / 256, 0, 0)
-    yield from (x - dx, y + dx, dz_up, zbuf, (u - 48) / 512, (v - 96) / 256, 0, 0)
-    yield from (x + dx, y - dx, dz_up, zbuf, (u + 48) / 512, (v - 96) / 256, 0, 0)
-    yield from (x + dx, y - dx, dz_down, zbuf, (u + 48) / 512, v / 256, 0, 0)
-
 
 class tileset:
     def __init__(self, inifile):
@@ -163,6 +144,9 @@ class SimulationView:
         self.mouse_x = 0
         self.mouse_y = 0
         self.speed = 1.0
+
+        self.pers = defaultdict(list)
+        self.scenery = defaultdict(list)
 
         self.sprite_pers = Sprite('../art/guest.ini')
         self.sprite_shop = Sprite('../art/shop.ini')
@@ -234,6 +218,21 @@ class SimulationView:
 #             yield from passage_vtx(2, 5, 1)
 #             yield from passage_vtx(7, 3, 2)
 
+
+    def set_mouse_pos_world(self):
+        depth = ctypes.c_float(0.0)
+        gl.glReadPixels(self.mouse_x, self.mouse_y, 1, 1, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, pointer(depth))  # print(depth, decode_zbuffer(depth.value * 2 - 1))
+        xmy = math.floor((self.mouse_x - self.screen_origin_x) / VOXEL_X_SIDE)
+        xpy, Z, mode, sub = decode_zbuffer(depth.value * 2 - 1)
+        if (xmy + xpy) % 2 == 0:
+            X = (xmy + xpy) // 2
+            Y = (xpy - xmy) // 2
+        else:
+            X = (xmy + xpy + 1) // 2
+            Y = (xpy - xmy - 1) // 2
+        self.mouse_pos_world = X, Y, Z, mode, sub
+
+
     def draw(self):
         if self.simulation is None:
             return
@@ -253,6 +252,10 @@ class SimulationView:
 
         self.draw_scene()
         self.draw_persons()
+
+
+        self.set_mouse_pos_world()
+
         gl.glDisable(gl.GL_DEPTH_TEST)
 
 
@@ -281,7 +284,21 @@ class SimulationView:
         gl.glBindTexture(gl.GL_TEXTURE_2D, sprite.texture_pal)
         self.sprite_program.uniform1i(b"palette", 1)  # set to 1 because the texture is bound to GL_TEXTURE1
 
-        data = list(self.get_sprite_vertex_data(sprite, self.simulation.persons))
+        self.pers.clear()
+        for pers in self.simulation.persons:
+            self.pers[math.floor(pers.x), math.floor(pers.y)].append(pers)
+
+        data = []
+        for lst in self.pers.values():
+            lst.sort(key=lambda pers: pers.x + pers.y)
+            for rank, pers in enumerate(lst):
+                data.extend(sprite.vertex_data(self.simulation.time, rank=rank, mode=ZMODE_SUBVOX_MIDDLE, **pers.__dict__))
+
+
+        data = []
+        for pers in self.simulation.persons:
+            data.extend(sprite.vertex_data(self.simulation.time, **pers.__dict__))
+
         data = (gl.GLfloat * len(data))(*data)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
@@ -307,6 +324,8 @@ class SimulationView:
         gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
 
 
+
+
     def on_resize(self, x, y):
         '''update the window manager when the opengl viewport is resized'''
         self.program.uniform2f(b'window_size', x, y)
@@ -319,13 +338,23 @@ class SimulationView:
 
     def on_mouse_press(self, x, y, button, modifiers):
         logging.debug('SimulationView.on_mouse_press({}, {})'.format(x, y))
-        tile = self.find_tile_at(x - self.screen_origin_x, self.screen_origin_y - y)
-        if not tile:
-            return
-        if button == mouse.LEFT:
-            self.simulation.set_path(tile[0], tile[1], True)
-        elif button == mouse.RIGHT:
-            self.simulation.remove_scenery(tile[0], tile[1], 0)
+
+        otype, obj = self.get_pointed_object()
+
+        if otype == 'pers':
+            logging.debug('clicked Person %s', obj.name)
+
+        else:
+            X = self.mouse_pos_world[0]
+            Y = self.mouse_pos_world[1]
+
+            if (0 <= X < self.simulation.world_width and
+                0 <= Y < self.simulation.world_height):
+
+                if button == mouse.LEFT:
+                    self.simulation.set_path(X, Y, True)
+                elif button == mouse.RIGHT:
+                    self.simulation.remove_scenery(X, Y, 0)
 
     def on_mouse_motion(self, x, y, dx, dy):
         self.mouse_x = x
@@ -367,19 +396,15 @@ class SimulationView:
         self.screen_origin_x = x
         self.screen_origin_y = y
 
-    def find_tile_at(self, x, y):
-        ''' x,y screen coordinates'''
+    def get_pointed_object(self):
+        X, Y, Z, mode, rank = self.mouse_pos_world
+        if mode == ZMODE_SUBVOX_MIDDLE:
+            # currently only persons
+            if len(self.pers[X, Y]) > rank:
+                return ('pers', self.pers[X, Y][rank])
 
-        # for now we know that the map is at Z=0, so we can directly transform
-        # screen coordinates into voxel coordinates.
+        elif mode in (ZMODE_CENTER, ZMODE_FRONT, ZMODE_BACK):
+            if len(self.scenery[X, Y]) > rank:
+                return ('scen', self.scen[X, Y][rank])
 
-        X = int((x + 2 * y) // (4 * VOXEL_Y_SIDE))  # integer division ensures rounding down instead of towards zero
-        Y = int((2 * y - x) // (4 * VOXEL_Y_SIDE))
-
-        logging.debug('({}, {}) -> ({}, {})'.format(x, y, X, Y))
-        if (0 <= X < self.simulation.world_width and
-            0 <= Y < self.simulation.world_height):
-            return X, Y
-        else:
-            return None
-
+        return (None, None)

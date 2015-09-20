@@ -70,7 +70,7 @@ class Sprite:
     def __repr__(self):
         return 'Sprite(%s)' % self.inifile
 
-    def vertex_data(self, time, x=0, y=0, z=0, direction=0, pose=None, palette=0, **_kw):
+    def vertex_data(self, time, x=0, y=0, z=0, direction=0, pose=None, palette=0, rank=0, **_kw):
         r = self.get_coordinates(time, pose, direction)
 
         dx = self.offset_x / VOXEL_X_SIDE * 0.5
@@ -78,7 +78,7 @@ class Sprite:
         dz_down = -self.frame_height / VOXEL_HEIGHT + dz_up
 
         for mode, u_offset in self.layers:
-            zbuf = zbuffer(x, y, 0.0, mode)
+            zbuf = zbuffer(x, y, 0.0, mode, sub=min(rank, 31))
             yield from (x - dx, y + dx, z + dz_down, zbuf, r.left + u_offset, r.bottom, palette, 0)
             yield from (x - dx, y + dx, z + dz_up, zbuf, r.left + u_offset, r.top, palette, 0)
             yield from (x + dx, y - dx, z + dz_up, zbuf, r.right + u_offset, r.top, palette, 0)
