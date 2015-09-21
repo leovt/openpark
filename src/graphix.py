@@ -1,8 +1,9 @@
 import ctypes
 import logging
-from ctypes import byref, POINTER, pointer
+from ctypes import byref, POINTER, pointer, sizeof
 import PIL.Image
 from pyglet import gl
+import shaders
 
 def shader(stype, src):
     handle = gl.glCreateShader(stype)
@@ -104,3 +105,71 @@ def make_texture(filename, indexed=False):
                  ctypes.create_string_buffer(image.tobytes()))
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
     return name
+
+class Framebuffer:
+    ''' used for rendering to texture '''
+    def __init__(self):
+        self.fbo = gl.GLuint(0)
+        self.rendered_texture = gl.GLuint(0)
+        self.depthrenderbuffer = gl.GLuint(0)
+        self.vertex_buffer = gl.GLuint(0)
+
+        self.program = GlProgram(shaders.vertex_copy, shaders.fragment_copy)
+        gl.glGenBuffers(1, pointer(self.vertex_buffer))
+        data = (gl.GLfloat * 16)(-1, -1, 0, 0,
+                                 - 1, 1, 0, 1,
+                                  1, 1, 1, 1,
+                                  1, -1, 1, 0)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vertex_buffer)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_STATIC_DRAW)
+
+        gl.glGenFramebuffers(1, pointer(self.fbo))
+        if not self.fbo:
+            logging.error('failed fbo')
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+
+        gl.glGenTextures(1, pointer(self.rendered_texture))
+        if not self.rendered_texture:
+            logging.error('failed rendered_texture')
+
+        gl.glGenRenderbuffers(1, pointer(self.depthrenderbuffer))
+
+        self.resize(1, 1)
+
+    def resize(self, width, height):
+        ''' resizes the framebuffer to the given dimensions '''
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.rendered_texture)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, width, height, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, 0)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self.depthrenderbuffer)
+        gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_DEPTH_COMPONENT, width, height)
+        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, self.depthrenderbuffer)
+        gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, self.rendered_texture, 0)
+
+        draw_buffers = (gl.GLenum * 1)(gl.GL_COLOR_ATTACHMENT0)
+        gl.glDrawBuffers(1, draw_buffers)
+
+        if gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE:
+            logging.error('setting up fbo failed')
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+    def bind(self):
+        ''' binds the framebuffer '''
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+
+    def copy(self):
+        ''' copy the contents of the texture to full window '''
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+        self.program.use()
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.rendered_texture)
+        self.program.uniform1i(b"tex", 0)
+        self.program.vertex_attrib_pointer(self.vertex_buffer, b"position", 4, stride=4 * sizeof(gl.GLfloat))
+        gl.glDrawArrays(gl.GL_QUADS, 0, 4)
