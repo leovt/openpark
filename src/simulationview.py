@@ -156,13 +156,63 @@ class SimulationView:
         self.map_data_length = None
         self.init_gl()
 
+    def create_fbo(self):
+        if self.fbo:
+            gl.glDeleteFramebuffers(1, pointer(self.fbo))
+        if self.rendered_texture:
+            gl.glDeleteTextures(1, pointer(self.rendered_texture))
+        if self.depthrenderbuffer:
+            gl.glGenRenderbuffers(1, pointer(self.depthrenderbuffer))
+
+
+        gl.glGenFramebuffers(1, pointer(self.fbo))
+        if not self.fbo:
+            logging.error('failed fbo')
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+
+        gl.glGenTextures(1, pointer(self.rendered_texture))
+        if not self.rendered_texture:
+            logging.error('failed rendered_texture')
+
+        gl.glGenRenderbuffers(1, pointer(self.depthrenderbuffer))
+
+        self.resize_fbo(1, 1)
+
+    def resize_fbo(self, width, height):
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.rendered_texture)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, width, height, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, 0)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST);
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST);
+
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self.depthrenderbuffer);
+        gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_DEPTH_COMPONENT, width, height);
+        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, self.depthrenderbuffer)
+        gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, self.rendered_texture, 0)
+
+        draw_buffers = (gl.GLenum * 1)(gl.GL_COLOR_ATTACHMENT0)
+        gl.glDrawBuffers(1, draw_buffers);
+
+        if gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE:
+            logging.error('setting up fbo failed')
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+
     def init_gl(self):
+        self.fbo = gl.GLuint(0)
+        self.rendered_texture = gl.GLuint(0)
+        self.depthrenderbuffer = gl.GLuint(0)
+        self.create_fbo()
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
         self.sprite_program = GlProgram(shaders.vertex_scene, shaders.fragment_sprite)
+        self.copy_program = GlProgram(shaders.vertex_copy, shaders.fragment_copy)
         self.buffer = gl.GLuint(0)
         self.map_buffer = gl.GLuint(0)
+        self.copy_buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
         gl.glGenBuffers(1, pointer(self.map_buffer))
+        gl.glGenBuffers(1, pointer(self.copy_buffer))
 
         gl.glEnable(gl.GL_BLEND)
         gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
@@ -236,6 +286,8 @@ class SimulationView:
     def draw(self):
         if self.simulation is None:
             return
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
         gl.glEnable(gl.GL_DEPTH_TEST)
         now = self.simulation.current_datetime()
         self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
@@ -257,6 +309,25 @@ class SimulationView:
         self.set_mouse_pos_world()
 
         gl.glDisable(gl.GL_DEPTH_TEST)
+
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+        self.copy_program.use()
+        self.copy_program.vertex_attrib_pointer(self.copy_buffer, b"position", 4, stride=4 * sizeof(gl.GLfloat))
+
+        gl.glActiveTexture(gl.GL_TEXTURE0)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, self.rendered_texture)
+        self.copy_program.uniform1i(b"tex", 0)
+
+        data = (gl.GLfloat * 16)(-1, -1, 0, 0,
+                                 - 1, 1, 0, 1,
+                                  1, 1, 1, 1,
+                                  1, -1, 1, 0)
+
+        gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.copy_buffer)
+        gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
+        gl.glDrawArrays(gl.GL_QUADS, 0, 4)
+
 
 
     def draw_map(self):
@@ -327,7 +398,8 @@ class SimulationView:
 
 
     def on_resize(self, x, y):
-        '''update the window manager when the opengl viewport is resized'''
+        '''update the window size when the opengl viewport is resized'''
+        self.resize_fbo(x, y)
         self.program.uniform2f(b'window_size', x, y)
         self.sprite_program.uniform2f(b'window_size', x, y)
         self.screen_width = x
