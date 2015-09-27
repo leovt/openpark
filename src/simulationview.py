@@ -16,6 +16,7 @@ from graphix import GlProgram
 from windowmanager import Label
 
 import ctypes
+import itertools
 class VERTEX(ctypes.Structure):
     _fields_ = [
         ('position', gl.GLfloat * 4),
@@ -134,7 +135,24 @@ class tileset:
                                ((x - dx) * grid_width, y * grid_height)]
 
 
+import weakref
+class Mapper:
+    def __init__(self):
+        self.obj_to_key = weakref.WeakKeyDictionary({self:0})
+        self.key_to_obj = weakref.WeakValueDictionary({0:self})
 
+    def key(self, obj):
+        if obj in self.obj_to_key:
+            return self.obj_to_key[obj]
+        newkey = next(x for x in itertools.count() if x not in self.key_to_obj)
+        self.obj_to_key[obj] = newkey
+        self.key_to_obj[newkey] = obj
+        return newkey
+
+    def obj(self, key):
+        if key == 0:
+            return None
+        return self.key_to_obj.get(key, None)
 
 class SimulationView:
     '''
@@ -166,6 +184,8 @@ class SimulationView:
         self.tiles = tileset('../art/map.ini')
         self.map_data_length = None
         self.init_gl()
+        self.mapper = Mapper()
+        self.mouse_object_key = None
 
 
     def init_gl(self):
@@ -241,7 +261,9 @@ class SimulationView:
         gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT1)
         gl.glReadPixels(self.mouse_x // self.pixel_size, self.mouse_y // self.pixel_size, 1, 1, gl.GL_RED_INTEGER, gl.GL_INT, pointer(objectid))
 
-        print ('%0.5f' % (depth.value), tuple(int(x * 255 + 0.5) for x in color), objectid)
+        self.mouse_object_key = objectid.value
+
+        # print ('%0.5f' % (depth.value), tuple(int(x * 255 + 0.5) for x in color), objectid)
 
         xmy = math.floor((self.mouse_x // self.pixel_size - self.screen_origin_x // self.pixel_size) / VOXEL_X_SIDE)
         xpy, Z, mode, sub = decode_zbuffer(depth.value * 2 - 1)
@@ -324,7 +346,8 @@ class SimulationView:
 
         data = []
         for pers in self.simulation.persons:
-            data.extend(sprite.vertex_data(self.simulation.time, **pers.__dict__))
+            key = self.mapper.key(pers)
+            data.extend(sprite.vertex_data(self.simulation.time, key=key, **pers.__dict__))
 
         data = (VERTEX * len(data))(*data)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
@@ -371,11 +394,10 @@ class SimulationView:
     def on_mouse_press(self, x, y, button, modifiers):
         logging.debug('SimulationView.on_mouse_press({}, {})'.format(x, y))
 
-        otype, obj = self.get_pointed_object()
+        obj = self.mapper.obj(self.mouse_object_key)
 
-        if otype == 'pers':
-            logging.debug('clicked Person %s', obj.name)
-
+        if obj:
+            logging.debug('clicked Object %s', getattr(obj, 'name', '?'))
         else:
             X = self.mouse_pos_world[0]
             Y = self.mouse_pos_world[1]
@@ -429,6 +451,9 @@ class SimulationView:
         self.screen_origin_y = y
 
     def get_pointed_object(self):
+        if self.mouse_object_id:
+            return self.mapper.obj(self.mouse_object_id)
+
         X, Y, Z, mode, rank = self.mouse_pos_world
         if mode == ZMODE_SUBVOX_MIDDLE:
             # currently only persons
