@@ -15,8 +15,15 @@ import graphix
 from graphix import GlProgram
 from windowmanager import Label
 
-from graphix import make_texture
 import ctypes
+class VERTEX(ctypes.Structure):
+    _fields_ = [
+        ('position', gl.GLfloat * 4),
+        ('texcoord', gl.GLfloat * 4),
+    #    ('object_id', gl.GLint),
+    ]
+
+from graphix import make_texture
 import math
 from collections import defaultdict
 
@@ -127,6 +134,8 @@ class tileset:
                                ((x - dx) * grid_width, y * grid_height)]
 
 
+
+
 class SimulationView:
     '''
     classdocs
@@ -144,6 +153,7 @@ class SimulationView:
         self.screen_origin_y = 0
         self.mouse_x = 0
         self.mouse_y = 0
+        self.pixel_size = 2
         self.speed = 1.0
 
         self.pers = defaultdict(list)
@@ -162,6 +172,9 @@ class SimulationView:
         self.framebuffer = graphix.Framebuffer()
         self.program = GlProgram(shaders.vertex_scene, shaders.fragment_scene)
         self.sprite_program = GlProgram(shaders.vertex_scene, shaders.fragment_sprite)
+        gl.glBindFragDataLocation(self.sprite_program.handle, 0, b'FragColor')
+        gl.glBindFragDataLocation(self.sprite_program.handle, 1, b'ObjectID')
+
         self.buffer = gl.GLuint(0)
         self.map_buffer = gl.GLuint(0)
         gl.glGenBuffers(1, pointer(self.buffer))
@@ -219,8 +232,18 @@ class SimulationView:
 
     def set_mouse_pos_world(self):
         depth = ctypes.c_float(0.0)
-        gl.glReadPixels(self.mouse_x, self.mouse_y, 1, 1, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, pointer(depth))  # print(depth, decode_zbuffer(depth.value * 2 - 1))
-        xmy = math.floor((self.mouse_x - self.screen_origin_x) / VOXEL_X_SIDE)
+        color = (ctypes.c_float * 3)(0.0)
+        objectid = gl.GLint(0)
+
+        gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT0)
+        gl.glReadPixels(self.mouse_x // self.pixel_size, self.mouse_y // self.pixel_size, 1, 1, gl.GL_DEPTH_COMPONENT, gl.GL_FLOAT, pointer(depth))  # print(depth, decode_zbuffer(depth.value * 2 - 1))
+        gl.glReadPixels(self.mouse_x // self.pixel_size, self.mouse_y // self.pixel_size, 1, 1, gl.GL_RGB, gl.GL_FLOAT, color)
+        gl.glReadBuffer(gl.GL_COLOR_ATTACHMENT1)
+        gl.glReadPixels(self.mouse_x // self.pixel_size, self.mouse_y // self.pixel_size, 1, 1, gl.GL_RED_INTEGER, gl.GL_INT, pointer(objectid))
+
+        print ('%0.5f' % (depth.value), tuple(int(x * 255 + 0.5) for x in color), objectid)
+
+        xmy = math.floor((self.mouse_x // self.pixel_size - self.screen_origin_x // self.pixel_size) / VOXEL_X_SIDE)
         xpy, Z, mode, sub = decode_zbuffer(depth.value * 2 - 1)
         if (xmy + xpy) % 2 == 0:
             X = (xmy + xpy) // 2
@@ -235,8 +258,9 @@ class SimulationView:
         if self.simulation is None:
             return
         self.framebuffer.bind()
-        gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+        self.framebuffer.clear()
         gl.glEnable(gl.GL_DEPTH_TEST)
+        gl.glViewport(0, 0, self.fbo_width, self.fbo_height)
         now = self.simulation.current_datetime()
         self.label.text = 'Simulated date is {} + {:0.1f}'.format(format_date(now), now[3])
 
@@ -247,8 +271,8 @@ class SimulationView:
         self.draw_map()
 
         self.sprite_program.use()
-        self.sprite_program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=8 * sizeof(gl.GLfloat))
-        self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=8 * sizeof(gl.GLfloat), offset=4 * sizeof(gl.GLfloat))
+        self.sprite_program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=sizeof(VERTEX), offset=VERTEX.position.offset)
+        self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=sizeof(VERTEX), offset=VERTEX.texcoord.offset)
 
         self.draw_scene()
         self.draw_persons()
@@ -257,7 +281,7 @@ class SimulationView:
         self.set_mouse_pos_world()
 
         gl.glDisable(gl.GL_DEPTH_TEST)
-
+        gl.glViewport(0, 0, self.screen_width, self.screen_height)
         self.framebuffer.copy()
 
 
@@ -301,11 +325,11 @@ class SimulationView:
         for pers in self.simulation.persons:
             data.extend(sprite.vertex_data(self.simulation.time, **pers.__dict__))
 
-        data = (gl.GLfloat * len(data))(*data)
+        data = (VERTEX * len(data))(*data)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data))
 
     def draw_scene(self):
         sprite = self.sprite_shop
@@ -319,20 +343,24 @@ class SimulationView:
 
         sprites = {'shop': self.sprite_shop, 'entrance': self.sprite_entrance}
         data = list(d for obj in self.simulation.scene for d in sprites[obj.type].vertex_data(self.simulation.time, **obj.__dict__))
-        data = (gl.GLfloat * len(data))(*data)
+        data = (VERTEX * len(data))(*data)
         gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.buffer)
         gl.glBufferData(gl.GL_ARRAY_BUFFER, sizeof(data), data, gl.GL_DYNAMIC_DRAW)
 
-        gl.glDrawArrays(gl.GL_QUADS, 0, len(data) // 8)
+        gl.glDrawArrays(gl.GL_QUADS, 0, len(data))
 
 
 
 
     def on_resize(self, x, y):
         '''update the window size when the opengl viewport is resized'''
-        self.framebuffer.resize(x, y)
-        self.program.uniform2f(b'window_size', x, y)
-        self.sprite_program.uniform2f(b'window_size', x, y)
+
+        self.fbo_width = x // self.pixel_size
+        self.fbo_height = y // self.pixel_size
+
+        self.framebuffer.resize(self.fbo_width, self.fbo_height)
+        self.program.uniform2f(b'window_size', self.fbo_width, self.fbo_height)
+        self.sprite_program.uniform2f(b'window_size', self.fbo_width, self.fbo_height)
         self.screen_width = x
         self.screen_height = y
         self.scroll_to(x // 2, y // 2)
@@ -394,8 +422,8 @@ class SimulationView:
         self.scroll_to(self.screen_origin_x + dx, self.screen_origin_y + dy)
 
     def scroll_to(self, x, y):
-        self.program.uniform2f(b'screen_origin', x // 1, -y // 1)
-        self.sprite_program.uniform2f(b'screen_origin', x // 1, -y // 1)
+        self.program.uniform2f(b'screen_origin', x // self.pixel_size, -y // self.pixel_size)
+        self.sprite_program.uniform2f(b'screen_origin', x // self.pixel_size, -y // self.pixel_size)
         self.screen_origin_x = x
         self.screen_origin_y = y
 

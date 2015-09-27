@@ -112,6 +112,7 @@ class Framebuffer:
         self.fbo = gl.GLuint(0)
         self.rendered_texture = gl.GLuint(0)
         self.depthrenderbuffer = gl.GLuint(0)
+        self.pickingbuffer = gl.GLuint(0)
         self.vertex_buffer = gl.GLuint(0)
 
         self.program = GlProgram(shaders.vertex_copy, shaders.fragment_copy)
@@ -134,6 +135,7 @@ class Framebuffer:
             logging.error('failed rendered_texture')
 
         gl.glGenRenderbuffers(1, pointer(self.depthrenderbuffer))
+        gl.glGenRenderbuffers(1, pointer(self.pickingbuffer))
 
         self.resize(1, 1)
 
@@ -144,14 +146,18 @@ class Framebuffer:
         gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGB, width, height, 0, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, 0)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+        gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, self.rendered_texture, 0)
 
         gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self.depthrenderbuffer)
         gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_DEPTH_COMPONENT, width, height)
         gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_RENDERBUFFER, self.depthrenderbuffer)
-        gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, self.rendered_texture, 0)
 
-        draw_buffers = (gl.GLenum * 1)(gl.GL_COLOR_ATTACHMENT0)
-        gl.glDrawBuffers(1, draw_buffers)
+        gl.glBindRenderbuffer(gl.GL_RENDERBUFFER, self.pickingbuffer)
+        gl.glRenderbufferStorage(gl.GL_RENDERBUFFER, gl.GL_R16UI, width, height)
+        gl.glFramebufferRenderbuffer(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT1, gl.GL_RENDERBUFFER, self.pickingbuffer)
+
+        draw_buffers = (gl.GLenum * 2)(gl.GL_COLOR_ATTACHMENT0, gl.GL_COLOR_ATTACHMENT1)
+        gl.glDrawBuffers(2, draw_buffers)
 
         if gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE:
             logging.error('setting up fbo failed')
@@ -161,6 +167,11 @@ class Framebuffer:
     def bind(self):
         ''' binds the framebuffer '''
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
+
+    def clear(self):
+        gl.glClearBufferfv(gl.GL_COLOR, 0, (gl.GLfloat * 4)(0.1, 0.2, 0.3, 0.4))
+        gl.glClearBufferfv(gl.GL_DEPTH, 0, (gl.GLfloat * 1)(1.0))
+        gl.glClearBufferiv(gl.GL_COLOR, 1, (gl.GLint * 4)(0xffff, 0, 0, 0))
 
     def copy(self):
         ''' copy the contents of the texture to full window '''

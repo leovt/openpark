@@ -11,7 +11,8 @@ import graphix
 import os.path
 
 from simulationview import (VOXEL_HEIGHT, VOXEL_X_SIDE, VOXEL_Y_SIDE,
-                            zbuffer, ZMODE_CENTER, ZMODE_FRONT, ZMODE_BACK)
+                            zbuffer, ZMODE_CENTER, ZMODE_FRONT, ZMODE_BACK,
+    VERTEX)
 
 PoseInfo = namedtuple('PoseInfo', 'number_of_frames, first_frame')
 
@@ -79,10 +80,10 @@ class Sprite:
 
         for mode, u_offset in self.layers:
             zbuf = zbuffer(x, y, 0.0, mode, sub=min(rank, 31))
-            yield from (x - dx, y + dx, z + dz_down, zbuf, r.left + u_offset, r.bottom, palette, 0)
-            yield from (x - dx, y + dx, z + dz_up, zbuf, r.left + u_offset, r.top, palette, 0)
-            yield from (x + dx, y - dx, z + dz_up, zbuf, r.right + u_offset, r.top, palette, 0)
-            yield from (x + dx, y - dx, z + dz_down, zbuf, r.right + u_offset, r.bottom, palette, 0)
+            yield VERTEX((x - dx, y + dx, z + dz_down, zbuf), (r.left + u_offset, r.bottom, palette, 0))
+            yield VERTEX((x - dx, y + dx, z + dz_up, zbuf), (r.left + u_offset, r.top, palette, 0))
+            yield VERTEX((x + dx, y - dx, z + dz_up, zbuf), (r.right + u_offset, r.top, palette, 0))
+            yield VERTEX((x + dx, y - dx, z + dz_down, zbuf), (r.right + u_offset, r.bottom, palette, 0))
 
     def get_coordinates(self, time, pose, direction):
         ''' get texture coordinates for a quad as a Rect'''
