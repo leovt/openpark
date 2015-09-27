@@ -20,7 +20,7 @@ class VERTEX(ctypes.Structure):
     _fields_ = [
         ('position', gl.GLfloat * 4),
         ('texcoord', gl.GLfloat * 4),
-    #    ('object_id', gl.GLint),
+        ('object_id', gl.GLint),
     ]
 
 from graphix import make_texture
@@ -273,6 +273,7 @@ class SimulationView:
         self.sprite_program.use()
         self.sprite_program.vertex_attrib_pointer(self.buffer, b"position", 4, stride=sizeof(VERTEX), offset=VERTEX.position.offset)
         self.sprite_program.vertex_attrib_pointer(self.buffer, b"texcoord", 4, stride=sizeof(VERTEX), offset=VERTEX.texcoord.offset)
+        self.sprite_program.vertex_attrib_pointer(self.buffer, b"object_id", 1, stride=sizeof(VERTEX), offset=VERTEX.object_id.offset)
 
         self.draw_scene()
         self.draw_persons()

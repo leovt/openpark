@@ -171,7 +171,7 @@ class Framebuffer:
     def clear(self):
         gl.glClearBufferfv(gl.GL_COLOR, 0, (gl.GLfloat * 4)(0.1, 0.2, 0.3, 0.4))
         gl.glClearBufferfv(gl.GL_DEPTH, 0, (gl.GLfloat * 1)(1.0))
-        gl.glClearBufferiv(gl.GL_COLOR, 1, (gl.GLint * 4)(0xffff, 0, 0, 0))
+        gl.glClearBufferiv(gl.GL_COLOR, 1, (gl.GLint * 4)(0, 0, 0, 0))
 
     def copy(self):
         ''' copy the contents of the texture to full window '''

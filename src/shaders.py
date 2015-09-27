@@ -1,6 +1,8 @@
 vertex_scene = b'''
+#version 130
 attribute vec4 position;
 attribute vec4 texcoord;
+attribute int object_id;
 
 varying vec4 texcoord_;
 
@@ -11,8 +13,7 @@ const float VOXEL_HEIGHT = 24.0;
 const float VOXEL_Y_SIDE = 24.0;
 const float VOXEL_X_SIDE = 48.0;
 
-const float map_rows = 16.0;
-const float map_cols = 16.0;
+flat out int object_id_;
 
 void main()
 {
@@ -21,28 +22,41 @@ void main()
     world = world + screen_origin;
     world = 2.0 * world / window_size - vec2(1.0, -1.0);
     texcoord_ = texcoord;
-    float zscale = map_rows + map_cols;
     gl_Position = vec4(world, position.w, 1.0); 
+    object_id_ = object_id;
 }
 '''
 
 fragment_scene = b'''
+#version 130
+
 uniform sampler2D tex;
 varying vec4 texcoord_;
+
+flat in int object_id_;
+
+out vec4 FragColor;
+out int ObjectID;
 
 void main()
 {
     vec4 bottom = texture2D(tex, texcoord_.xy);
     vec4 top = texture2D(tex, texcoord_.zw);
-    gl_FragColor = mix(bottom, top, top.a);
-    //gl_FragColor = vec4(vec3(gl_FragCoord.z), 1.0);
+    FragColor = mix(bottom, top, top.a);
+    ObjectID = object_id_;
 }
 '''
 
 fragment_sprite = b'''
+#version 130
 uniform sampler2D tex;
 uniform sampler2D palette;
 varying vec4 texcoord_;
+
+flat in int object_id_;
+
+out vec4 FragColor;
+out int ObjectID;
 
 void main()
 {
@@ -51,7 +65,8 @@ void main()
         discard;
     // index = 5.0;
     float pal = texcoord_.z;
-    gl_FragColor = texture2D(palette, vec2((index+0.5) / 32.0, (pal+0.5) / 32.0));
+    FragColor = texture2D(palette, vec2((index+0.5) / 32.0, (pal+0.5) / 32.0));
+    ObjectID = object_id_;
 }
 '''
 
